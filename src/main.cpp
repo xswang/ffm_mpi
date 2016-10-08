@@ -29,6 +29,7 @@ int main(int argc,char* argv[]){
 
     Load_Data test_data(test_data_path);
     test_data.load_data_batch(nproc, rank);
+
     Predict predict(&test_data, nproc, rank);
 
     Load_Data train_data(train_data_path); 
@@ -36,6 +37,7 @@ int main(int argc,char* argv[]){
 
     if(strcmp(argv[1], "ftrl") == 0){
         FTRL ftrl(&train_data, &predict, nproc, rank);
+                    std::cout<<"???"<<std::endl;
         ftrl.epochs = epochnum;
         ftrl.batch_size = batchsize;
         ftrl.bias = bias;
@@ -43,9 +45,9 @@ int main(int argc,char* argv[]){
         ftrl.beta = beta;
         ftrl.lambda1 = lambda1;
         ftrl.lambda2 = lambda2;
-        ftrl.ftrl();
+        ftrl.train();
         std::cout<<"rank "<<rank<<" train finish!"<<processor_name<<std::endl;
-        predict.run(ftrl.loc_w, ftrl.loc_v);
+        //predict.run(ftrl.loc_w, ftrl.loc_v);
     }
 
     MPI::Finalize();

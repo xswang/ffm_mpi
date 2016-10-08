@@ -14,6 +14,7 @@ typedef struct{
 
 class Predict{
     public:
+    std::vector<std::set<int> > cross_field;
     Predict(Load_Data* load_data, int total_num_proc, int my_rank) 
             : data(load_data), nproc(total_num_proc), rank(my_rank){
         pctr = 0.0;
@@ -22,7 +23,17 @@ class Predict{
         g_all_clk = new float[MAX_ARRAY_SIZE];
         g_nclk = new float[MAX_ARRAY_SIZE];
         g_clk = new float[MAX_ARRAY_SIZE];
+
+        for(int i = 0; i < data->field; i++){
+            std::set<int> s;
+            for(int j = 0; j < data->field; j += 1){
+                if(j == i) continue;
+                s.insert(j);
+            }
+            cross_field.push_back(s);
+        }
     }
+
     ~Predict(){
         delete[] g_all_non_clk;
         delete[] g_all_clk;
@@ -30,7 +41,20 @@ class Predict{
         delete[] g_clk;
     }
 
-    void predict(float* glo_w, float*** glo_v){
+    inline double getElem(double* arr, int i, int j, int k){
+        return arr[i * data->factor + j * data->glo_fea_dim + k];
+    }
+
+    inline void putVal(double* arr, float val, int i, int j, int k){
+        arr[i*data->factor + j * data->glo_fea_dim + k] = val;
+    }
+
+    inline void addVal(double* arr, int val, int i, int j, int k){
+        arr[i * data->factor + j * data->glo_fea_dim + k] += val;
+    }
+
+
+    void predict(double* glo_w, double* glo_v){
         int group = 0, index = 0; float value = 0.0; float pctr = 0.0;
         for(int i = 0; i < data->fea_matrix.size(); i++) {
 	        float wx = 0.0;
@@ -47,10 +71,13 @@ class Predict{
                     index = data->fea_matrix[i][col].idx;
                     value = data->fea_matrix[i][col].val;
                     for(int f = 0; f < data->field; f++){
-                        setIter = data->cross_field[group].find(f);
-                        if(setIter == data->cross_field[group].end()) continue;
-                        vxvx += glo_v[k][index][f] * value;
-                        vvxx += glo_v[k][index][f] * glo_v[k][index][f] * value * value;
+                        setIter = cross_field[group].find(f);
+                        if(setIter == cross_field[group].end()) continue;
+                        float glov = getElem(glo_v, k, index, f);
+                        //vxvx += glo_v[k][index][f] * value;
+                        vxvx += glov * value;
+                        //vvxx += glo_v[k][index][f] * glo_v[k][index][f] * value * value;
+                        vvxx += glov * glov * value * value;
                     }
                 }
                 vxvx *= vxvx;
@@ -127,7 +154,7 @@ class Predict{
     }
 
     //void run(std::vector<float> w){
-    void run(float* w, float*** v){
+    void run(double* w, double* v){
         predict(w, v);
 
         merge_clk();

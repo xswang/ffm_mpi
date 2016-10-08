@@ -25,14 +25,13 @@ public:
     std::vector<int> label;
     std::string line;
     int y, nchar;
-    int group;
+    int fg;
     long int index;
     float value;
     long int loc_fea_dim = 0;
     long int glo_fea_dim = 0;
     int factor = 10;
     int field = 16;
-    std::vector<std::set<int> > cross_field;
 
     Load_Data(const char *file_name){
         fin_.open(file_name, std::ios::in);
@@ -41,12 +40,6 @@ public:
             exit(1);
         } 
         std::cout<<file_name<<std::endl;
-        for(int i = 0; i < field; i++){
-            for(int j = 0; j < field; j += 1){
-                if(j == i) continue;
-                cross_field[i].insert(j);
-            }
-        }
     }
 
     ~Load_Data(){
@@ -64,14 +57,14 @@ public:
             if(sscanf(pline, "%d%n", &y, &nchar) >= 1){
                 pline += nchar;
                 label.push_back(y);
-                while(sscanf(pline, "%d:%ld:%f%n", &group, &index, &value, &nchar) >= 2){
+                while(sscanf(pline, "%d:%ld:%f%n", &fg, &index, &value, &nchar) >= 2){
                     pline += nchar;
-                    sf.group = group;
+                    sf.group = fg;
                     sf.idx = index;
                     if(index > loc_fea_dim) loc_fea_dim = index;
                     sf.val = value;
                     key_val.push_back(sf);
-                    //if(rank == 0)std::cout<<sf.field<<" "<<sf.idx<<" "<<sf.val<<"\t";
+                    //if(rank == 0)std::cout<<sf.group<<" "<<sf.idx<<" "<<sf.val<<"\t";
                 }
                 //std::cout<<std::endl;
             }
