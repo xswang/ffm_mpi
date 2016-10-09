@@ -64,9 +64,7 @@ public:
                     if(index > loc_fea_dim) loc_fea_dim = index;
                     sf.val = value;
                     key_val.push_back(sf);
-                    //if(rank == 0)std::cout<<sf.group<<" "<<sf.idx<<" "<<sf.val<<"\t";
                 }
-                //std::cout<<std::endl;
             }
             fea_matrix.push_back(key_val);
         }
@@ -80,6 +78,7 @@ public:
             }
         }
         MPI_Bcast(&glo_fea_dim, 1, MPI_LONG, 0, MPI_COMM_WORLD);//must be in all processes code;
+        std::cout<<"feature dimesion = "<<glo_fea_dim<<std::endl;
     }
 private:
 };

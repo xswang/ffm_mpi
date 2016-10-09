@@ -18,7 +18,7 @@ class Predict{
     Predict(Load_Data* load_data, int total_num_proc, int my_rank) 
             : data(load_data), nproc(total_num_proc), rank(my_rank){
         pctr = 0.0;
-        MAX_ARRAY_SIZE = 2000;
+        MAX_ARRAY_SIZE = 1e6;
         g_all_non_clk = new float[MAX_ARRAY_SIZE];
         g_all_clk = new float[MAX_ARRAY_SIZE];
         g_nclk = new float[MAX_ARRAY_SIZE];
@@ -41,19 +41,13 @@ class Predict{
         delete[] g_clk;
     }
 
-    inline double getElem(double* arr, int i, int j, int k){
-        return arr[i * data->factor + j * data->glo_fea_dim + k];
+    double getElem(double* arr, int i, int j, int k){
+        return arr[i * data->glo_fea_dim*data->field + j * data->field + k];
     }
-
-    inline void putVal(double* arr, float val, int i, int j, int k){
-        arr[i*data->factor + j * data->glo_fea_dim + k] = val;
+    void print1dim(double* arr){
+        for(int i = 0; i < data->factor * data->glo_fea_dim * data->field; i++)
+        std::cout<<arr[i]<<std::endl;
     }
-
-    inline void addVal(double* arr, int val, int i, int j, int k){
-        arr[i * data->factor + j * data->glo_fea_dim + k] += val;
-    }
-
-
     void predict(double* glo_w, double* glo_v){
         int group = 0, index = 0; float value = 0.0; float pctr = 0.0;
         for(int i = 0; i < data->fea_matrix.size(); i++) {
@@ -73,10 +67,8 @@ class Predict{
                     for(int f = 0; f < data->field; f++){
                         setIter = cross_field[group].find(f);
                         if(setIter == cross_field[group].end()) continue;
-                        float glov = getElem(glo_v, k, index, f);
-                        //vxvx += glo_v[k][index][f] * value;
+                        double glov = getElem(glo_v, k, index, f);
                         vxvx += glov * value;
-                        //vvxx += glo_v[k][index][f] * glo_v[k][index][f] * value * value;
                         vvxx += glov * glov * value * value;
                     }
                 }
@@ -84,6 +76,7 @@ class Predict{
                 vxvx -= vvxx;
                 wx += vxvx * 1.0 / 2.0;
             }
+            //std::cout<<"wxxxx = "<<wx<<std::endl;
             if(wx < -30){
                 pctr = 1e-6;
             }
@@ -153,10 +146,8 @@ class Predict{
         }
     }
 
-    //void run(std::vector<float> w){
     void run(double* w, double* v){
         predict(w, v);
-
         merge_clk();
         mpi_auc(nproc, rank, auc);
 

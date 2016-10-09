@@ -26,6 +26,7 @@ class FTRL{
             loc_v = new double[v_dim]();
             for(int i = 0; i < v_dim; i++){
                 loc_v[i] = gaussrand();
+                //std::cout<<"loc_v[i]"<<loc_v[i]<<std::endl;
             }
             loc_g_v = new double[v_dim]();
             glo_g_v = new double[v_dim];
@@ -100,27 +101,23 @@ class FTRL{
             for(int k = 0; k < data->factor; k++){
                 for(int col = 0; col < data->glo_fea_dim; col++){
                     for(int f = 0; f < data->field; f++){
-                        float locnv = getElem(loc_n_v, k, col, f);
+                        float old_locnv = getElem(loc_n_v, k, col, f);
                         float glogv = getElem(glo_g_v, k, col, f);
-                        float locsigmav = (sqrt(locnv + glogv*glogv) - locnv) / alpha_v; 
-                        putVal(loc_sigma_v, locsigmav, k, col, f);
-                        //loc_sigma_v[k][col][f] = ( sqrt (loc_n_v[k][col][f] + glo_g_v[k][col][f] * glo_g_v[k][col][f]) - sqrt(loc_n_v[k][col][f]) ) / alpha_v;
-                        //loc_n_v[k][col][f] += glo_g_v[k][col][f] * glo_g_v[k][col][f];
-                        addVal(loc_n_v, glogv * glogv, k, col, f);
-                        addVal(loc_z_v, glogv - locsigmav * getElem(loc_v, k, col, f), k, col, f);
-                        //loc_z_v[k][col][f] += glo_g_v[k][col][f] - loc_sigma_v[k][col][f] * loc_v[k][col][f];
-                        float loczv = getElem(loc_z_v, k, col, f);
-                        if(abs(loczv) <= lambda1_v){
-                            //loc_v[k][col][f] = 0.0;
+                        float locsigmav = (sqrt(old_locnv + glogv*glogv) - sqrt(old_locnv)) / alpha_v; 
+
+                        double new_locnv = old_locnv + glogv * glogv;
+                        putVal(loc_n_v, new_locnv, k, col, f);
+                        double old_loczv = getElem(loc_z_v, k, col, f);
+                        double new_loczv = old_loczv + glogv - locsigmav * getElem(loc_v, k, col, f);
+                        putVal(loc_z_v, new_loczv, k, col, f);
+                        if(abs(new_loczv) <= lambda1_v){
                             putVal(loc_v, 0.0, k, col, f);
                         } 
                         else{
                             float tmpr= 0.0;
-                            if(loczv >= 0) tmpr = loczv - lambda1_v;
-                            else tmpr = loczv + lambda1_v;
-                            //float tmpl = -1 * ( ( beta_v + sqrt(loc_n_v[k][col][f]) ) / alpha_v  + lambda2_v);
+                            if(new_loczv >= 0) tmpr = new_loczv - lambda1_v;
+                            else tmpr = new_loczv + lambda1_v;
                             float tmpl = -1 * ( ( beta_v + sqrt(getElem(loc_n_v, k, col, f)) ) / alpha_v  + lambda2_v);
-                            //loc_v[k][col][f] = tmpr / tmpl;
                             putVal(loc_v, tmpr / tmpl, k, col, f);
                         }
                     }
@@ -133,7 +130,6 @@ class FTRL{
             for(int k = 0; k < data->factor; k++){
                 for(int col = 0; col < data->glo_fea_dim; col++){
                     for(int f = 0; f < data->field; f++){
-                        //loc_v[k][col][f] += 1 * 0.01 *  glo_g_v[k][col][f];
                         addVal(loc_v, 1 * 0.01 *  getElem(glo_g_v, k, col, f), k, col, f);
                     }
                 }
@@ -141,15 +137,15 @@ class FTRL{
         }
 
         inline double getElem(double* arr, int i, int j, int k){
-            return arr[i * data->factor + j * data->glo_fea_dim + k];    
+            return arr[i * data->glo_fea_dim*data->field + j * data->field + k];    
         }
         
         inline void putVal(double* arr, float val, int i, int j, int k){
-            arr[i*data->factor + j * data->glo_fea_dim + k] = val;
+            arr[i*data->glo_fea_dim*data->field + j * data->field + k] = val;
         }
 
         inline void addVal(double* arr, int val, int i, int j, int k){
-            arr[i * data->factor + j * data->glo_fea_dim + k] += val;
+            arr[i * data->glo_fea_dim*data->field + j * data->field + k] += val;
         }
 
         void batch_gradient_calculate(int &row){
@@ -214,7 +210,11 @@ class FTRL{
                 std::cout<<std::endl;
             }
         } 
-
+        void print1dim(double* a, int n){
+            for(int i = 0; i < n; i++){
+                if(a[i] != 0)std::cout<<a[i]<<" ";
+            }
+        }
         void save_model(int epoch){
             char buffer[1024];
             snprintf(buffer, 1024, "%d", epoch);
@@ -249,41 +249,44 @@ class FTRL{
                     cblas_dscal(v_dim, 1.0/batch_size, loc_g_v, 1);
 
                     if(rank != 0){//slave nodes send gradient to master node;
-                        MPI_Send(loc_g, data->glo_fea_dim, MPI_FLOAT, 0, 99, MPI_COMM_WORLD);
-                        MPI_Send(loc_g_v, v_dim, MPI_FLOAT, 0, 399, MPI_COMM_WORLD);
+                        MPI_Send(loc_g, data->glo_fea_dim, MPI_DOUBLE, 0, 99, MPI_COMM_WORLD);
+                        MPI_Send(loc_g_v, v_dim, MPI_DOUBLE, 0, 399, MPI_COMM_WORLD);
                     }
                     else if(rank == 0){//rank 0 is master node
                         cblas_dcopy(data->glo_fea_dim, loc_g, 1, glo_g, 1);
                         cblas_dcopy(v_dim, loc_g_v, 1, glo_g_v, 1);
                         for(int r = 1; r < num_proc; r++){//receive other node`s gradient and store to glo_g;
-                            MPI_Recv(loc_g, data->glo_fea_dim, MPI_FLOAT, r, 99, MPI_COMM_WORLD, &status);
+                            MPI_Recv(loc_g, data->glo_fea_dim, MPI_DOUBLE, r, 99, MPI_COMM_WORLD, &status);
                             cblas_daxpy(data->glo_fea_dim, 1, loc_g, 1, glo_g, 1);
-                            MPI_Recv(loc_g_v, v_dim, MPI_FLOAT, r, 399, MPI_COMM_WORLD, &status);
+
+                            MPI_Recv(loc_g_v, v_dim, MPI_DOUBLE, r, 399, MPI_COMM_WORLD, &status);
                             cblas_daxpy(v_dim, 1, loc_g_v, 1, glo_g_v, 1);
                         }
                         cblas_dscal(data->glo_fea_dim, 1.0/num_proc, glo_g, 1);
                         cblas_dscal(v_dim, 1.0/num_proc, glo_g_v, 1);
                         update_w();
+                        //print1dim(loc_w, data->glo_fea_dim);
                         //update_v_sgd();
                         update_v_ftrl();
+                        print1dim(loc_v, v_dim);
                     }
                     //sync w of all nodes in cluster
                     if(rank == 0){
                         for(int r = 1; r < num_proc; r++){
-                            MPI_Send(loc_w, data->glo_fea_dim, MPI_FLOAT, r, 999, MPI_COMM_WORLD);
-                            MPI_Send(loc_v, v_dim, MPI_FLOAT, r, 3999, MPI_COMM_WORLD);
+                            MPI_Send(loc_w, data->glo_fea_dim, MPI_DOUBLE, r, 999, MPI_COMM_WORLD);
+                            MPI_Send(loc_v, v_dim, MPI_DOUBLE, r, 3999, MPI_COMM_WORLD);
                         }
                     }
                     else if(rank != 0){
-                        MPI_Recv(loc_w, data->glo_fea_dim, MPI_FLOAT, 0, 999, MPI_COMM_WORLD, &status);
-                        MPI_Recv(loc_v, v_dim, MPI_FLOAT, 0, 3999, MPI_COMM_WORLD, &status);
+                        MPI_Recv(loc_w, data->glo_fea_dim, MPI_DOUBLE, 0, 999, MPI_COMM_WORLD, &status);
+                        MPI_Recv(loc_v, v_dim, MPI_DOUBLE, 0, 3999, MPI_COMM_WORLD, &status);
                     }
                     MPI_Barrier(MPI_COMM_WORLD);//will it make the procedure slowly? is it necessary?
                     batches++;
                 }//end row while
                 //print2dim(loc_g_v, data->factor, data->glo_fea_dim);
             }//end epoch for
-        }//end ftrl
+        }//end train
 
     public:
         int v_dim;
