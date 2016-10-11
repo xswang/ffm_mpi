@@ -37,11 +37,11 @@ class FTRL{
             for(int i = 0; i < data->field; i++){
                 std::set<int> s;
                 for(int j = 0; j < data->field; j += 1){
-                    if(j == i) continue;
                     s.insert(j);
                 }
                 cross_field.push_back(s);
             }
+
              
             alpha_v = 1.0;
             beta_v = 0.01;
@@ -101,6 +101,7 @@ class FTRL{
             for(int k = 0; k < data->factor; k++){
                 for(int col = 0; col < data->glo_fea_dim; col++){
                     for(int f = 0; f < data->field; f++){
+                        if(data->fm == true) f = 0;
                         float old_locnv = getElem(loc_n_v, k, col, f);
                         float glogv = getElem(glo_g_v, k, col, f);
                         float locsigmav = (sqrt(old_locnv + glogv*glogv) - sqrt(old_locnv)) / alpha_v; 
@@ -120,6 +121,7 @@ class FTRL{
                             float tmpl = -1 * ( ( beta_v + sqrt(getElem(loc_n_v, k, col, f)) ) / alpha_v  + lambda2_v);
                             putVal(loc_v, tmpr / tmpl, k, col, f);
                         }
+                        if(data->fm == true) break;
                     }
                 }//end for
             }//end for
@@ -130,7 +132,9 @@ class FTRL{
             for(int k = 0; k < data->factor; k++){
                 for(int col = 0; col < data->glo_fea_dim; col++){
                     for(int f = 0; f < data->field; f++){
+                        if(data->fm == true) f = 0;
                         addVal(loc_v, 1 * 0.01 *  getElem(glo_g_v, k, col, f), k, col, f);
+                        if(data->fm == true) break;
                     }
                 }
             }//end for
@@ -165,10 +169,11 @@ class FTRL{
                         for(int f = 0; f < data->field; f++){
                             setIter = cross_field[group].find(f);
                             if(setIter == cross_field[group].end()) continue;
-                            //int loc_v_temp = loc_v[k][index][f];
+                            if(data->fm == true) f = 0;
                             int loc_v_temp = getElem(loc_v, k, index, f);
                             vx_sum[k] += loc_v_temp * value;
                             vvxx += loc_v_temp * loc_v_temp * value * value;
+                            if(data->fm == true) break;
                         }
                     }
                 }//end for
@@ -190,11 +195,11 @@ class FTRL{
                         for(int f = 0; f < data->field; f++){
                             setIter = cross_field[group].find(f);
                             if(setIter == cross_field[group].end()) continue;
-                            //vx = loc_v[k][index][f] * value;
+                            if(data->fm == true) f = 0;
                             float tmpv = getElem(loc_v, k, index, f);
                             vx = tmpv * value;
-                            //loc_g_v[k][index][f] +=  -1 * delta * (vx_sum[k] - vx) * value;
                             addVal(loc_g_v, -1 * delta * (vx_sum[k] - vx) * value, k, index, f);
+                            if(data->fm == true) break;
                         }
                     }
                 }

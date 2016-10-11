@@ -27,7 +27,6 @@ class Predict{
         for(int i = 0; i < data->field; i++){
             std::set<int> s;
             for(int j = 0; j < data->field; j += 1){
-                if(j == i) continue;
                 s.insert(j);
             }
             cross_field.push_back(s);
@@ -67,6 +66,7 @@ class Predict{
                     for(int f = 0; f < data->field; f++){
                         setIter = cross_field[group].find(f);
                         if(setIter == cross_field[group].end()) continue;
+                        if(data->fm == true) f = 0;
                         double glov = getElem(glo_v, k, index, f);
                         vxvx += glov * value;
                         vvxx += glov * glov * value * value;

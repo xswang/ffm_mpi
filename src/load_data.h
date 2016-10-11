@@ -32,6 +32,8 @@ public:
     long int glo_fea_dim = 0;
     int factor = 10;
     int field = 16;
+    bool fm = true;
+    bool lr = true;
 
     Load_Data(const char *file_name){
         fin_.open(file_name, std::ios::in);
