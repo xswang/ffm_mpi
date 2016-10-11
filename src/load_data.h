@@ -30,10 +30,10 @@ public:
     float value;
     long int loc_fea_dim = 0;
     long int glo_fea_dim = 0;
-    int factor = 10;
-    int field = 16;
+    int factor = 2;
+    int field = 68;
     bool fm = true;
-    bool lr = true;
+    bool lr = false;
 
     Load_Data(const char *file_name){
         fin_.open(file_name, std::ios::in);
@@ -59,7 +59,7 @@ public:
             if(sscanf(pline, "%d%n", &y, &nchar) >= 1){
                 pline += nchar;
                 label.push_back(y);
-                while(sscanf(pline, "%d:%ld:%f%n", &fg, &index, &value, &nchar) >= 2){
+                while(sscanf(pline, "%d:%ld:%f%n", &fg, &index, &value, &nchar) >= 3){
                     pline += nchar;
                     sf.group = fg;
                     sf.idx = index;

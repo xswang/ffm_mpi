@@ -41,7 +41,9 @@ class Predict{
     }
 
     double getElem(double* arr, int i, int j, int k){
-        return arr[i * data->glo_fea_dim*data->field + j * data->field + k];
+        if(data->fm == true)
+            return arr[i * data->glo_fea_dim + j + k];
+        else return arr[i * data->glo_fea_dim*data->field + j * data->field + k];
     }
     void print1dim(double* arr){
         for(int i = 0; i < data->factor * data->glo_fea_dim * data->field; i++)

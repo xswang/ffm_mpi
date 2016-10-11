@@ -16,8 +16,8 @@ class FTRL{
 
         void init(){
             v_dim = data->factor * data->glo_fea_dim * data->field;
-            if(data->fm == true) v_dim = data->factor * data->glo_fea_dim * 1;
             if(data->lr == true) v_dim = 0;
+            if(data->fm == true) v_dim = data->factor * data->glo_fea_dim * 1;
             loc_w = new double[data->glo_fea_dim]();
             loc_g = new double[data->glo_fea_dim]();
             glo_g = new double[data->glo_fea_dim]();
@@ -145,15 +145,21 @@ class FTRL{
         }
 
         inline double getElem(double* arr, int i, int j, int k){
-            return arr[i * data->glo_fea_dim*data->field + j * data->field + k];    
+            if(data->fm == true) 
+                return arr[i * data->glo_fea_dim + j + k];    
+            else return arr[i * data->glo_fea_dim*data->field + j * data->field + k];    
         }
         
         inline void putVal(double* arr, float val, int i, int j, int k){
-            arr[i*data->glo_fea_dim*data->field + j * data->field + k] = val;
+            if(data->fm == true)
+                    arr[i*data->glo_fea_dim + j + k] = val;
+            else arr[i*data->glo_fea_dim*data->field + j * data->field + k] = val;
         }
 
         inline void addVal(double* arr, int val, int i, int j, int k){
-            arr[i * data->glo_fea_dim*data->field + j * data->field + k] += val;
+            if(data->fm == true)
+                arr[i * data->glo_fea_dim + j + k] += val;
+            else arr[i * data->glo_fea_dim*data->field + j * data->field + k] += val;
         }
 
         void batch_gradient_calculate(int &row){
