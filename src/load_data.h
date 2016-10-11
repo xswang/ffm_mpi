@@ -32,7 +32,7 @@ public:
     long int glo_fea_dim = 0;
     int factor = 2;
     int field = 68;
-    bool fm = true;
+    bool fm = false;
     bool lr = false;
 
     Load_Data(const char *file_name){
