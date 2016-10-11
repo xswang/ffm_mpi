@@ -16,6 +16,8 @@ class FTRL{
 
         void init(){
             v_dim = data->factor * data->glo_fea_dim * data->field;
+            if(data->fm == true) v_dim = data->factor * data->glo_fea_dim * 1;
+            if(data->lr == true) v_dim = 0;
             loc_w = new double[data->glo_fea_dim]();
             loc_g = new double[data->glo_fea_dim]();
             glo_g = new double[data->glo_fea_dim]();
@@ -99,6 +101,7 @@ class FTRL{
 
         void update_v_ftrl(){// only for master node
             for(int k = 0; k < data->factor; k++){
+                if(data->lr == true) break;
                 for(int col = 0; col < data->glo_fea_dim; col++){
                     for(int f = 0; f < data->field; f++){
                         if(data->fm == true) f = 0;
@@ -130,6 +133,7 @@ class FTRL{
         void update_v_sgd(){// only for master node
             //print2dim(glo_g_v, data->factor, data->glo_fea_dim);
             for(int k = 0; k < data->factor; k++){
+                if(data->lr == true) break;
                 for(int col = 0; col < data->glo_fea_dim; col++){
                     for(int f = 0; f < data->field; f++){
                         if(data->fm == true) f = 0;
@@ -166,6 +170,7 @@ class FTRL{
                     value = data->fea_matrix[row][col].val;
                     wx += loc_w[index] * value;
                     for(int k = 0; k < data->factor; k++){
+                        if(data->lr == true) break;
                         for(int f = 0; f < data->field; f++){
                             setIter = cross_field[group].find(f);
                             if(setIter == cross_field[group].end()) continue;
@@ -178,6 +183,7 @@ class FTRL{
                     }
                 }//end for
                 for(int k = 0; k < data->factor; k++){
+                    if(data->lr == true) break;
                     vxvx += vx_sum[k] * vx_sum[k]; 
                 }
                 vxvx -= vvxx;
@@ -192,6 +198,7 @@ class FTRL{
                     loc_g[index] += delta * value;
                     float vx = 0.0;
                     for(int k = 0; k < data->factor; k++){
+                        if(data->lr == true) break;
                         for(int f = 0; f < data->field; f++){
                             setIter = cross_field[group].find(f);
                             if(setIter == cross_field[group].end()) continue;
@@ -273,7 +280,7 @@ class FTRL{
                         //print1dim(loc_w, data->glo_fea_dim);
                         //update_v_sgd();
                         update_v_ftrl();
-                        print1dim(loc_v, v_dim);
+                        //print1dim(loc_v, v_dim);
                     }
                     //sync w of all nodes in cluster
                     if(rank == 0){

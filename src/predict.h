@@ -58,6 +58,7 @@ class Predict{
             }
             std::set<int>::iterator setIter;
             for(int k = 0; k < data->factor; k++){
+                if(data->lr == true) break;
                 float vxvx = 0.0, vvxx = 0.0;
                 for(int col = 0; col < data->fea_matrix[i].size(); col++){
                     group = data->fea_matrix[i][col].group;
@@ -70,6 +71,7 @@ class Predict{
                         double glov = getElem(glo_v, k, index, f);
                         vxvx += glov * value;
                         vvxx += glov * glov * value * value;
+                        if(data->fm == true) break;
                     }
                 }
                 vxvx *= vxvx;
