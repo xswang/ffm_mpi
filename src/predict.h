@@ -41,7 +41,7 @@ class Predict{
     }
 
     double getElem(double* arr, int i, int j, int k){
-        if(data->fm == true)
+        if(data->isfm)
             return arr[i * data->glo_fea_dim + j + k];
         else return arr[i * data->glo_fea_dim*data->field + j * data->field + k];
     }
@@ -60,7 +60,7 @@ class Predict{
             }
             std::set<int>::iterator setIter;
             for(int k = 0; k < data->factor; k++){
-                if(data->lr == true) break;
+                if(data->islr) break;
                 float vxvx = 0.0, vvxx = 0.0;
                 for(int col = 0; col < data->fea_matrix[i].size(); col++){
                     group = data->fea_matrix[i][col].group;
@@ -69,11 +69,11 @@ class Predict{
                     for(int f = 0; f < data->field; f++){
                         setIter = cross_field[group].find(f);
                         if(setIter == cross_field[group].end()) continue;
-                        if(data->fm == true) f = 0;
+                        if(data->isfm) f = 0;
                         double glov = getElem(glo_v, k, index, f);
                         vxvx += glov * value;
                         vvxx += glov * glov * value * value;
-                        if(data->fm == true) break;
+                        if(data->isfm) break;
                     }
                 }
                 vxvx *= vxvx;

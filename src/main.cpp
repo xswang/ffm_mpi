@@ -14,25 +14,43 @@ int main(int argc,char* argv[]){
     MPI_Get_processor_name(processor_name,&namelen);
     std::cout<<"my host = "<<processor_name<<" my rank = "<<rank<<std::endl;
     
-    int epochnum = atoi(argv[2]);
-    int batchsize = atoi(argv[3]);
-    float bias = atof(argv[4]);
-    float alpha = atof(argv[5]);
-    float beta = atof(argv[6]);
-    float lambda1 = atof(argv[7]);
-    float lambda2 = atof(argv[8]);
+    int epochnum;
+    sscanf(argv[2], "epoch=%d", &epochnum);
+    int batchsize;
+    sscanf(argv[3], "batch_size=%d", &batchsize);
+    float bias;
+    sscanf(argv[4], "bias=%f", &bias);
+    float alpha;
+    sscanf(argv[5], "alpha=%f", &alpha);
+    float beta;
+    sscanf(argv[6], "beta=%f", &beta);
+    float lambda1;
+    sscanf(argv[7], "lambda1=%f", &lambda1);
+    float lambda2;
+    sscanf(argv[8], "lambda2=%f", &lambda2);
+    int factor;
+    sscanf(argv[9], "factor=%d", &factor);
+    int group;
+    sscanf(argv[10], "group=%d", &group);
+    int isffm;
+    sscanf(argv[11], "isffm=%d", &isffm);
+    int isfm;
+    sscanf(argv[12], "isfm=%d", &isfm);
+    int islr;
+    sscanf(argv[13], "islr=%d", &islr);
 
     char train_data_path[1024];
-    snprintf(train_data_path, 1024, "%s-%05d", argv[9], rank);
+    snprintf(train_data_path, 1024, "%s-%05d", argv[14], rank);
     char test_data_path[1024];
-    snprintf(test_data_path, 1024, "%s-%05d", argv[10], rank);
+    snprintf(test_data_path, 1024, "%s-%05d", argv[15], rank);
+    if(rank == 0)std::cout<<"epochnum="<<epochnum<<"\tbatchsize="<<batchsize<<"\tbias="<<bias<<"\talpha="<<alpha<<"\tbeta="<<beta<<"\tlambda1="<<lambda1<<"\tlambda2="<<lambda2<<"\tfactor="<<factor<<"\tgroup="<<group<<"\tisffm="<<isffm<<"\tisfm="<<isfm<<"\tislr="<<islr<<std::endl;
 
-    Load_Data test_data(test_data_path);
+    Load_Data test_data(test_data_path, factor, group, isffm, isfm, islr);
     test_data.load_data_batch(nproc, rank);
 
     Predict predict(&test_data, nproc, rank);
 
-    Load_Data train_data(train_data_path); 
+    Load_Data train_data(train_data_path, factor, group, isffm, isfm, islr); 
     train_data.load_data_batch(nproc, rank);
 
     if(strcmp(argv[1], "ftrl") == 0){

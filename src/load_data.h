@@ -30,12 +30,14 @@ public:
     float value;
     long int loc_fea_dim = 0;
     long int glo_fea_dim = 0;
-    int factor = 2;
-    int field = 68;
-    bool fm = false;
-    bool lr = false;
+    int factor;
+    int field;
+    bool isffm;
+    bool isfm;
+    bool islr;
 
-    Load_Data(const char *file_name){
+    Load_Data(const char *file_name, int factors, int groups, bool is_ffm, bool is_fm, bool is_lr) 
+            : factor(factors), field(groups), isffm(is_ffm), isfm(is_fm), islr(is_lr) {
         fin_.open(file_name, std::ios::in);
         if(!fin_.is_open()){
             std::cout<<"open file error: "<<file_name << std::endl;
