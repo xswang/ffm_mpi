@@ -170,8 +170,8 @@ class FTRL{
 
         void batch_gradient_calculate(int &row){
             int group = 0, index = 0; float value = 0.0; float pctr = 0;
-            //memset(loc_g, 0.0, data->glo_fea_dim);
-            //memset(loc_g_v, 0.0, v_dim);
+            memset(loc_g, 0.0, data->glo_fea_dim);//notation:
+            memset(loc_g_v, 0.0, v_dim);//notation: 
 
             for(int line = 0; line < batch_size; line++){
                 float wx = bias;
@@ -301,16 +301,19 @@ class FTRL{
                     if( (batches == batch_num_min - 1) ) break;
                     batch_gradient_calculate(row);
                     if(row % 200000 == 0) std::cout<<"row = "<<row<<std::endl;
-                    cblas_dscal(data->glo_fea_dim, 1.0/batch_size, loc_g, 1);
-                    cblas_dscal(v_dim, 1.0/batch_size, loc_g_v, 1);
 
+                    cblas_dscal(data->glo_fea_dim, 1.0/batch_size, loc_g, 1);
                     loc_g_nonzero = filter(loc_g, data->glo_fea_dim);
                     std::vector<Send_datatype> loc_g_vec;
                     filter_nonzero(loc_g, data->glo_fea_dim, loc_g_vec);
 
-                    loc_g_v_nonzero = filter(loc_g_v, v_dim);
                     std::vector<Send_datatype> loc_g_v_vec;
-                    filter_nonzero(loc_g_v, v_dim, loc_g_v_vec);
+                    if(!data->islr){
+                        cblas_dscal(v_dim, 1.0/batch_size, loc_g_v, 1);
+                        loc_g_v_nonzero = filter(loc_g_v, v_dim);
+                        filter_nonzero(loc_g_v, v_dim, loc_g_v_vec);
+                    }
+
                     if(rank != 0){//slave nodes send gradient to master node;
                         //MPI_Send(loc_g, data->glo_fea_dim, MPI_DOUBLE, 0, 99, MPI_COMM_WORLD);
                         MPI_Send(&loc_g_vec[0], loc_g_nonzero, newType, 0, 99, MPI_COMM_WORLD);
@@ -322,7 +325,7 @@ class FTRL{
                     }
                     else if(rank == 0){//rank 0 is master node
                         cblas_dcopy(data->glo_fea_dim, loc_g, 1, glo_g, 1);
-                        cblas_dcopy(v_dim, loc_g_v, 1, glo_g_v, 1);
+                        if(!data->islr) cblas_dcopy(v_dim, loc_g_v, 1, glo_g_v, 1);
                         for(int r = 1; r < num_proc; r++){//receive other node`s gradient and store to glo_g;
                             //MPI_Recv(loc_g, data->glo_fea_dim, MPI_DOUBLE, r, 99, MPI_COMM_WORLD, &status);
                             //cblas_daxpy(data->glo_fea_dim, 1, loc_g, 1, glo_g, 1);
@@ -354,25 +357,26 @@ class FTRL{
                         }
 
                         cblas_dscal(data->glo_fea_dim, 1.0/num_proc, glo_g, 1);
-                        cblas_dscal(v_dim, 1.0/num_proc, glo_g_v, 1);
                         update_w();
-                        //print1dim(loc_w, data->glo_fea_dim);
                         //update_v_sgd();
                         if(!data->islr){
+                            cblas_dscal(v_dim, 1.0/num_proc, glo_g_v, 1);
                             update_v_ftrl();
                         }
-                        //print1dim(loc_v, v_dim);
                     }
                     //sync w of all nodes in cluster
-                    //return;
                     if(rank == 0){
                         int loc_w_nonzero = filter(loc_w, data->glo_fea_dim);
                         std::vector<Send_datatype> loc_w_vec;
                         filter_nonzero(loc_w, data->glo_fea_dim, loc_w_vec);
 
-                        int loc_v_nonzero = filter(loc_v, v_dim);
                         std::vector<Send_datatype> loc_v_vec;
-                        filter_nonzero(loc_v, v_dim, loc_v_vec);
+                        int loc_v_nonzero;
+                        if(!data->islr){
+                            loc_v_nonzero = filter(loc_v, v_dim);
+                            filter_nonzero(loc_v, v_dim, loc_v_vec);
+                        }
+
                         for(int r = 1; r < num_proc; r++){
                             //MPI_Send(loc_w, data->glo_fea_dim, MPI_DOUBLE, r, 999, MPI_COMM_WORLD);
                             MPI_Send(&loc_w_vec[0], loc_w_nonzero, newType, r, 999, MPI_COMM_WORLD);
