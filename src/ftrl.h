@@ -6,6 +6,12 @@
 #include <math.h>
 #include <cblas.h>
 
+class Send_datatype{
+public:
+    double key;
+    double val;
+};
+
 class FTRL{
     public:
         FTRL(Load_Data* load_data, Predict* predict, int total_num_proc, int my_rank) 
@@ -164,6 +170,9 @@ class FTRL{
 
         void batch_gradient_calculate(int &row){
             int group = 0, index = 0; float value = 0.0; float pctr = 0;
+            //memset(loc_g, 0.0, data->glo_fea_dim);
+            //memset(loc_g_v, 0.0, v_dim);
+
             for(int line = 0; line < batch_size; line++){
                 float wx = bias;
                 int ins_seg_num = data->fea_matrix[row].size();
@@ -196,7 +205,7 @@ class FTRL{
                 wx += vxvx * 1.0 / 2.0;
                 pctr = sigmoid(wx);
                 float delta = pctr - data->label[row];
-
+               
                 for(int col = 0; col < ins_seg_num; col++){
                     group = data->fea_matrix[row][col].group;
                     index = data->fea_matrix[row][col].idx;
@@ -249,8 +258,37 @@ class FTRL{
             }
             md.close();
         }
+        
+        long int filter(double* a, long int n){
+            int nonzero = 0;
+            for(int i = 0; i < n; i++){
+                if(a[i] != 0.0) nonzero += 1;
+            } 
+            return nonzero;
+        }
+        void filter_nonzero(double *a, long int n, std::vector<Send_datatype> &vec){
+            Send_datatype dt;
+            for(int i = 0; i < n; i++){
+                if(a[i] != 0.0){
+                    dt.key = i;
+                    dt.val = a[i];
+                    vec.push_back(dt);
+                }
+            }
+        }
 
         void train(){
+            int block_length[] = {1, 1};
+            MPI::Datatype oldType[] = {MPI_DOUBLE, MPI_DOUBLE};
+            MPI::Aint addressOffsets[] = {0, 1 * sizeof(double)};
+            MPI::Datatype newType = MPI::Datatype::Create_struct(
+                            sizeof(block_length) / sizeof(int),
+                            block_length,
+                            addressOffsets,
+                            oldType
+                            );
+            newType.Commit();
+
             int batch_num = data->fea_matrix.size() / batch_size, batch_num_min = 0;
             MPI_Allreduce(&batch_num, &batch_num_min, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
             std::cout<<"total epochs = "<<epochs<<" batch_num_min = "<<batch_num_min<<std::endl;
@@ -262,42 +300,117 @@ class FTRL{
                 while(row < data->fea_matrix.size()){
                     if( (batches == batch_num_min - 1) ) break;
                     batch_gradient_calculate(row);
-                    if(row % 50000 == 0) std::cout<<"row = "<<row<<std::endl;
+                    if(row % 200000 == 0) std::cout<<"row = "<<row<<std::endl;
                     cblas_dscal(data->glo_fea_dim, 1.0/batch_size, loc_g, 1);
                     cblas_dscal(v_dim, 1.0/batch_size, loc_g_v, 1);
 
+                    loc_g_nonzero = filter(loc_g, data->glo_fea_dim);
+                    std::vector<Send_datatype> loc_g_vec;
+                    filter_nonzero(loc_g, data->glo_fea_dim, loc_g_vec);
+
+                    loc_g_v_nonzero = filter(loc_g_v, v_dim);
+                    std::vector<Send_datatype> loc_g_v_vec;
+                    filter_nonzero(loc_g_v, v_dim, loc_g_v_vec);
                     if(rank != 0){//slave nodes send gradient to master node;
-                        MPI_Send(loc_g, data->glo_fea_dim, MPI_DOUBLE, 0, 99, MPI_COMM_WORLD);
-                        MPI_Send(loc_g_v, v_dim, MPI_DOUBLE, 0, 399, MPI_COMM_WORLD);
+                        //MPI_Send(loc_g, data->glo_fea_dim, MPI_DOUBLE, 0, 99, MPI_COMM_WORLD);
+                        MPI_Send(&loc_g_vec[0], loc_g_nonzero, newType, 0, 99, MPI_COMM_WORLD);
+
+                        if(!data->islr){
+                            //MPI_Send(loc_g_v, v_dim, MPI_DOUBLE, 0, 399, MPI_COMM_WORLD);
+                            MPI_Send(&loc_g_v_vec[0], loc_g_v_nonzero, newType, 0, 399, MPI_COMM_WORLD);
+                        }
                     }
                     else if(rank == 0){//rank 0 is master node
                         cblas_dcopy(data->glo_fea_dim, loc_g, 1, glo_g, 1);
                         cblas_dcopy(v_dim, loc_g_v, 1, glo_g_v, 1);
                         for(int r = 1; r < num_proc; r++){//receive other node`s gradient and store to glo_g;
-                            MPI_Recv(loc_g, data->glo_fea_dim, MPI_DOUBLE, r, 99, MPI_COMM_WORLD, &status);
-                            cblas_daxpy(data->glo_fea_dim, 1, loc_g, 1, glo_g, 1);
-
-                            MPI_Recv(loc_g_v, v_dim, MPI_DOUBLE, r, 399, MPI_COMM_WORLD, &status);
-                            cblas_daxpy(v_dim, 1, loc_g_v, 1, glo_g_v, 1);
+                            //MPI_Recv(loc_g, data->glo_fea_dim, MPI_DOUBLE, r, 99, MPI_COMM_WORLD, &status);
+                            //cblas_daxpy(data->glo_fea_dim, 1, loc_g, 1, glo_g, 1);
+                            std::vector<Send_datatype> recv_loc_g_vec;
+                            recv_loc_g_vec.resize(data->glo_fea_dim);
+                            MPI_Recv(&recv_loc_g_vec[0], data->glo_fea_dim, newType, r, 99, MPI_COMM_WORLD, &status);
+                            int recv_loc_g_num;
+                            MPI_Get_count(&status, newType, &recv_loc_g_num);
+                            for(int i = 0; i < recv_loc_g_num; i++){
+                                int k = recv_loc_g_vec[i].key;
+                                int v = recv_loc_g_vec[i].val;
+                                glo_g[k] += v;
+                            }
+                            
+                            //MPI_Recv(loc_g_v, v_dim, MPI_DOUBLE, r, 399, MPI_COMM_WORLD, &status);
+                            //cblas_daxpy(v_dim, 1, loc_g_v, 1, glo_g_v, 1);
+                            if(!data->islr){
+                                std::vector<Send_datatype> recv_loc_g_v_vec;
+                                recv_loc_g_v_vec.resize(v_dim);
+                                MPI_Recv(&recv_loc_g_v_vec[0], v_dim, newType, r, 399, MPI_COMM_WORLD, &status);
+                                int recv_loc_g_v_num;
+                                MPI_Get_count(&status, newType, &recv_loc_g_v_num);
+                                for(int i = 0; i < recv_loc_g_v_num; i++){
+                                    int k = recv_loc_g_v_vec[i].key;
+                                    int v = recv_loc_g_v_vec[i].val;
+                                    glo_g_v[k] += v;
+                                }
+                            }
                         }
+
                         cblas_dscal(data->glo_fea_dim, 1.0/num_proc, glo_g, 1);
                         cblas_dscal(v_dim, 1.0/num_proc, glo_g_v, 1);
                         update_w();
                         //print1dim(loc_w, data->glo_fea_dim);
                         //update_v_sgd();
-                        update_v_ftrl();
+                        if(!data->islr){
+                            update_v_ftrl();
+                        }
                         //print1dim(loc_v, v_dim);
                     }
                     //sync w of all nodes in cluster
+                    //return;
                     if(rank == 0){
+                        int loc_w_nonzero = filter(loc_w, data->glo_fea_dim);
+                        std::vector<Send_datatype> loc_w_vec;
+                        filter_nonzero(loc_w, data->glo_fea_dim, loc_w_vec);
+
+                        int loc_v_nonzero = filter(loc_v, v_dim);
+                        std::vector<Send_datatype> loc_v_vec;
+                        filter_nonzero(loc_v, v_dim, loc_v_vec);
                         for(int r = 1; r < num_proc; r++){
-                            MPI_Send(loc_w, data->glo_fea_dim, MPI_DOUBLE, r, 999, MPI_COMM_WORLD);
-                            MPI_Send(loc_v, v_dim, MPI_DOUBLE, r, 3999, MPI_COMM_WORLD);
+                            //MPI_Send(loc_w, data->glo_fea_dim, MPI_DOUBLE, r, 999, MPI_COMM_WORLD);
+                            MPI_Send(&loc_w_vec[0], loc_w_nonzero, newType, r, 999, MPI_COMM_WORLD);
+         
+                            if(!data->islr){
+                                //MPI_Send(loc_v, v_dim, MPI_DOUBLE, r, 3999, MPI_COMM_WORLD);
+                                MPI_Send(&loc_v_vec[0], loc_v_nonzero, newType, r, 3999, MPI_COMM_WORLD);
+                            }
                         }
                     }
                     else if(rank != 0){
-                        MPI_Recv(loc_w, data->glo_fea_dim, MPI_DOUBLE, 0, 999, MPI_COMM_WORLD, &status);
-                        MPI_Recv(loc_v, v_dim, MPI_DOUBLE, 0, 3999, MPI_COMM_WORLD, &status);
+                        //MPI_Recv(loc_w, data->glo_fea_dim, MPI_DOUBLE, 0, 999, MPI_COMM_WORLD, &status);
+                        std::vector<Send_datatype> recv_loc_w_vec;
+                        recv_loc_w_vec.resize(data->glo_fea_dim);
+                        MPI_Recv(&recv_loc_w_vec[0], data->glo_fea_dim, newType, 0, 999, MPI_COMM_WORLD, &status);
+                        int recv_loc_w_num;
+                        MPI_Get_count(&status, newType, &recv_loc_w_num);
+                        memset(loc_w, 0.0, data->glo_fea_dim * sizeof(double));
+                        for(int i = 0; i < recv_loc_w_num; i++){
+                            int k = recv_loc_w_vec[i].key;
+                            int v = recv_loc_w_vec[i].val;
+                            loc_w[k] = v;
+                        }
+
+                        if(data->islr != 1){
+                            //MPI_Recv(loc_v, v_dim, MPI_DOUBLE, 0, 3999, MPI_COMM_WORLD, &status);
+                            std::vector<Send_datatype> recv_loc_v_vec;
+                            recv_loc_v_vec.resize(v_dim);
+                            MPI_Recv(&recv_loc_v_vec[0], v_dim, newType, 0, 3999, MPI_COMM_WORLD, &status);
+                            int recv_loc_v_num;
+                            MPI_Get_count(&status, newType, &recv_loc_w_num);
+                            memset(loc_v, 0.0, v_dim * sizeof(double));
+                            for(int i = 0; i < recv_loc_v_num; i++){
+                                int k = recv_loc_v_vec[i].key;
+                                int v = recv_loc_v_vec[i].val;
+                                loc_v[k] = v;
+                            }
+                        }
                     }
                     MPI_Barrier(MPI_COMM_WORLD);//will it make the procedure slowly? is it necessary?
                     batches++;
@@ -308,6 +421,8 @@ class FTRL{
 
     public:
         int v_dim;
+        int loc_g_nonzero;
+        int loc_g_v_nonzero;
 
         double* loc_w;
         double* loc_v;

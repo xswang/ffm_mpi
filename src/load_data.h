@@ -29,15 +29,16 @@ public:
     long int index;
     float value;
     long int loc_fea_dim = 0;
-    long int glo_fea_dim = 0;
+    long int glo_fea_dim;
     int factor;
     int field;
     bool isffm;
     bool isfm;
     bool islr;
 
-    Load_Data(const char *file_name, int factors, int groups, bool is_ffm, bool is_fm, bool is_lr) 
-            : factor(factors), field(groups), isffm(is_ffm), isfm(is_fm), islr(is_lr) {
+public:
+    Load_Data(const char *file_name, int fea_dim, int factors, int groups, bool is_ffm, bool is_fm, bool is_lr) 
+            : glo_fea_dim(fea_dim), factor(factors), field(groups), isffm(is_ffm), isfm(is_fm), islr(is_lr) {
         fin_.open(file_name, std::ios::in);
         if(!fin_.is_open()){
             std::cout<<"open file error: "<<file_name << std::endl;
@@ -51,7 +52,6 @@ public:
     }
 
     void load_data_batch(int nproc, int rank){
-        MPI_Status status;
         fea_matrix.clear();
         while(!fin_.eof()){
             std::getline(fin_, line);
@@ -65,9 +65,9 @@ public:
                     pline += nchar;
                     sf.group = fg;
                     sf.idx = index;
-                    if(index > loc_fea_dim) loc_fea_dim = index;
                     sf.val = value;
                     key_val.push_back(sf);
+                    if(index > loc_fea_dim) loc_fea_dim = index;
                 }
             }
             fea_matrix.push_back(key_val);
@@ -84,6 +84,28 @@ public:
         MPI_Bcast(&glo_fea_dim, 1, MPI_LONG, 0, MPI_COMM_WORLD);//must be in all processes code;
         std::cout<<"feature dimesion = "<<glo_fea_dim<<std::endl;
     }
+
+    void load_data_batch_direct_get_feadim(){
+        fea_matrix.clear();
+        while(!fin_.eof()){
+            std::getline(fin_, line);
+            key_val.clear();
+            const char *pline = line.c_str();
+            if(sscanf(pline, "%d%n", &y, &nchar) >= 1){
+                pline += nchar;
+                label.push_back(y);
+                while(sscanf(pline, "%d:%ld:%f%n", &fg, &index, &value, &nchar) >= 3){
+                    pline += nchar;
+                    sf.group = fg;
+                    sf.idx = index;
+                    sf.val = value;
+                    key_val.push_back(sf);
+                }
+            }
+            fea_matrix.push_back(key_val);
+        }
+    }
 private:
+    MPI_Status status;
 };
 #endif

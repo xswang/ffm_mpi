@@ -28,30 +28,34 @@ int main(int argc,char* argv[]){
     sscanf(argv[7], "lambda1=%f", &lambda1);
     float lambda2;
     sscanf(argv[8], "lambda2=%f", &lambda2);
+    int fea_dim;
+    sscanf(argv[9], "fea_dim=%d", &fea_dim);
     int factor;
-    sscanf(argv[9], "factor=%d", &factor);
+    sscanf(argv[10], "factor=%d", &factor);
     int group;
-    sscanf(argv[10], "group=%d", &group);
+    sscanf(argv[11], "group=%d", &group);
     int isffm;
-    sscanf(argv[11], "isffm=%d", &isffm);
+    sscanf(argv[12], "isffm=%d", &isffm);
     int isfm;
-    sscanf(argv[12], "isfm=%d", &isfm);
+    sscanf(argv[13], "isfm=%d", &isfm);
     int islr;
-    sscanf(argv[13], "islr=%d", &islr);
+    sscanf(argv[14], "islr=%d", &islr);
 
     char train_data_path[1024];
-    snprintf(train_data_path, 1024, "%s-%05d", argv[14], rank);
+    snprintf(train_data_path, 1024, "%s-%05d", argv[15], rank);
     char test_data_path[1024];
-    snprintf(test_data_path, 1024, "%s-%05d", argv[15], rank);
-    if(rank == 0)std::cout<<"epochnum="<<epochnum<<"\tbatchsize="<<batchsize<<"\tbias="<<bias<<"\talpha="<<alpha<<"\tbeta="<<beta<<"\tlambda1="<<lambda1<<"\tlambda2="<<lambda2<<"\tfactor="<<factor<<"\tgroup="<<group<<"\tisffm="<<isffm<<"\tisfm="<<isfm<<"\tislr="<<islr<<std::endl;
+    snprintf(test_data_path, 1024, "%s-%05d", argv[16], rank);
+    if(rank == 0)std::cout<<"epochnum="<<epochnum<<"\tbatchsize="<<batchsize<<"\tbias="<<bias<<"\talpha="<<alpha<<"\tbeta="<<beta<<"\tlambda1="<<lambda1<<"\tlambda2="<<lambda2<<"\tfea_dim="<<fea_dim<<"\tfactor="<<factor<<"\tgroup="<<group<<"\tisffm="<<isffm<<"\tisfm="<<isfm<<"\tislr="<<islr<<std::endl;
 
-    Load_Data test_data(test_data_path, factor, group, isffm, isfm, islr);
-    test_data.load_data_batch(nproc, rank);
+    Load_Data test_data(test_data_path, fea_dim, factor, group, isffm, isfm, islr);
+    //test_data.load_data_batch(nproc, rank);
+    test_data.load_data_batch_direct_get_feadim();
 
     Predict predict(&test_data, nproc, rank);
 
-    Load_Data train_data(train_data_path, factor, group, isffm, isfm, islr); 
-    train_data.load_data_batch(nproc, rank);
+    Load_Data train_data(train_data_path, fea_dim, factor, group, isffm, isfm, islr); 
+    //train_data.load_data_batch(nproc, rank);
+    train_data.load_data_batch_direct_get_feadim();
 
     if(strcmp(argv[1], "ftrl") == 0){
         FTRL ftrl(&train_data, &predict, nproc, rank);
