@@ -1,11 +1,13 @@
-#ifndef PREDICT_H_
-#define PREDICT_H_
+#pragma once
 
 #include <iostream>
 #include <fstream>
 #include <string.h>
 #include <math.h>
+#include <set>
+#include "mpi.h"
 
+namespace DML{
 typedef struct{
     float clk;
     float nclk;
@@ -15,8 +17,8 @@ typedef struct{
 class Predict{
     public:
     std::vector<std::set<int> > cross_field;
-    Predict(Load_Data* load_data, int total_num_proc, int my_rank) 
-            : data(load_data), nproc(total_num_proc), rank(my_rank){
+    Predict(LOAD_ALL_DATA* load_data, Param *param, int total_num_proc, int my_rank) 
+            : data(load_data), param(param), nproc(total_num_proc), rank(my_rank){
         pctr = 0.0;
         MAX_ARRAY_SIZE = 1e6;
         g_all_non_clk = new float[MAX_ARRAY_SIZE];
@@ -24,9 +26,9 @@ class Predict{
         g_nclk = new float[MAX_ARRAY_SIZE];
         g_clk = new float[MAX_ARRAY_SIZE];
 
-        for(int i = 0; i < data->field; i++){
+        for(int i = 0; i < param->group; i++){
             std::set<int> s;
-            for(int j = 0; j < data->field; j += 1){
+            for(int j = 0; j < param->group; j += 1){
                 s.insert(j);
             }
             cross_field.push_back(s);
@@ -41,46 +43,47 @@ class Predict{
     }
 
     double getElem(double* arr, int i, int j, int k){
-        if(data->isfm)
-            return arr[i * data->glo_fea_dim + j + k];
-        else return arr[i * data->glo_fea_dim*data->field + j * data->field + k];
+        if(param->isfm)
+            return arr[i * param->fea_dim + j + k];
+        else return arr[i * param->fea_dim*param->group + j * param->group + k];
     }
     void print1dim(double* arr){
-        for(int i = 0; i < data->factor * data->glo_fea_dim * data->field; i++)
+        for(int i = 0; i < param->factor * param->fea_dim * param->group; i++)
         std::cout<<arr[i]<<std::endl;
     }
     void predict(double* glo_w, double* glo_v){
         int group = 0, index = 0; float value = 0.0; float pctr = 0.0;
+        std::cout<<"test data size = "<<data->fea_matrix.size()<<std::endl;
         for(int i = 0; i < data->fea_matrix.size(); i++) {
 	        float wx = 0.0;
             for(int j = 0; j < data->fea_matrix[i].size(); j++) {
-                index = data->fea_matrix[i][j].idx;
+                index = data->fea_matrix[i][j].fid;
                 value = data->fea_matrix[i][j].val;
                 wx += glo_w[index] * value;
             }
             std::set<int>::iterator setIter;
-            for(int k = 0; k < data->factor; k++){
-                if(data->islr) break;
+            for(int k = 0; k < param->factor; k++){
+                if(param->islr) break;
                 float vxvx = 0.0, vvxx = 0.0;
                 for(int col = 0; col < data->fea_matrix[i].size(); col++){
-                    group = data->fea_matrix[i][col].group;
-                    index = data->fea_matrix[i][col].idx;
+                    group = data->fea_matrix[i][col].fgid;
+                    index = data->fea_matrix[i][col].fid;
                     value = data->fea_matrix[i][col].val;
-                    for(int f = 0; f < data->field; f++){
+                    for(int f = 0; f < param->group; f++){
                         setIter = cross_field[group].find(f);
                         if(setIter == cross_field[group].end()) continue;
-                        if(data->isfm) f = 0;
+                        if(param->isfm) f = 0;
                         double glov = getElem(glo_v, k, index, f);
                         vxvx += glov * value;
                         vvxx += glov * glov * value * value;
-                        if(data->isfm) break;
+                        if(param->isfm) break;
                     }
                 }
                 vxvx *= vxvx;
                 vxvx -= vvxx;
                 wx += vxvx * 1.0 / 2.0;
             }
-            //std::cout<<"wxxxx = "<<wx<<std::endl;
+            //std::cout<<"wx = "<<wx<<std::endl;
             if(wx < -30){
                 pctr = 1e-6;
             }
@@ -129,11 +132,11 @@ class Predict{
 
     int mpi_auc(int nprocs, int rank, double& auc){
         MPI_Status status;
-        if(rank != MASTER_ID){
-            MPI_Send(g_nclk, MAX_ARRAY_SIZE, MPI_FLOAT, MASTER_ID, 199, MPI_COMM_WORLD);
-            MPI_Send(g_clk, MAX_ARRAY_SIZE, MPI_FLOAT, MASTER_ID, 1999, MPI_COMM_WORLD);
+        if(rank != 0){
+            MPI_Send(g_nclk, MAX_ARRAY_SIZE, MPI_FLOAT, 0, 199, MPI_COMM_WORLD);
+            MPI_Send(g_clk, MAX_ARRAY_SIZE, MPI_FLOAT, 0, 1999, MPI_COMM_WORLD);
         }
-        else if(rank == MASTER_ID){
+        else if(rank == 0){
             for(int i = 0; i < MAX_ARRAY_SIZE; i++){
                 g_all_non_clk[i] = g_nclk[i];
                 g_all_clk[i] = g_clk[i];
@@ -155,13 +158,14 @@ class Predict{
         merge_clk();
         mpi_auc(nproc, rank, auc);
 
-        if(MASTER_ID == rank){
+        if(0 == rank){
             printf("AUC = %lf\n", auc);
         }
     }
 
     private:
-    Load_Data* data;
+    LOAD_ALL_DATA* data;
+    Param *param;
     std::vector<clkinfo> result_list;
     int MAX_ARRAY_SIZE;
     double auc = 0.0;
@@ -176,4 +180,4 @@ class Predict{
     int nproc; // total num of process in MPI comm world
     int rank; // my process rank in MPT comm world
 };
-#endif
+}

@@ -1,8 +1,9 @@
 #include <string>
-#include "mpi.h"
-#include "load_data.h"
-#include "ftrl.h"
+#include "param.h"
+#include "io/load_all_data.h"
+#include "learner/ftrl_learner.h"
 #include "predict.h"
+#include "mpi.h"
 
 int main(int argc,char* argv[]){  
     int rank, nproc;
@@ -12,61 +13,26 @@ int main(int argc,char* argv[]){
     MPI_Comm_rank(MPI_COMM_WORLD,&rank);
     MPI_Comm_size(MPI_COMM_WORLD,&nproc);
     MPI_Get_processor_name(processor_name,&namelen);
-    std::cout<<"my host = "<<processor_name<<" my rank = "<<rank<<std::endl;
+    DML::Param param(argc, argv);
+    param.Init();
     
-    int epochnum;
-    sscanf(argv[2], "epoch=%d", &epochnum);
-    int batchsize;
-    sscanf(argv[3], "batch_size=%d", &batchsize);
-    float bias;
-    sscanf(argv[4], "bias=%f", &bias);
-    float alpha;
-    sscanf(argv[5], "alpha=%f", &alpha);
-    float beta;
-    sscanf(argv[6], "beta=%f", &beta);
-    float lambda1;
-    sscanf(argv[7], "lambda1=%f", &lambda1);
-    float lambda2;
-    sscanf(argv[8], "lambda2=%f", &lambda2);
-    int fea_dim;
-    sscanf(argv[9], "fea_dim=%d", &fea_dim);
-    int factor;
-    sscanf(argv[10], "factor=%d", &factor);
-    int group;
-    sscanf(argv[11], "group=%d", &group);
-    int isffm;
-    sscanf(argv[12], "isffm=%d", &isffm);
-    int isfm;
-    sscanf(argv[13], "isfm=%d", &isfm);
-    int islr;
-    sscanf(argv[14], "islr=%d", &islr);
+    std::cout<<"my hostname is "<<processor_name<<" my rank is "<<rank<<std::endl;
 
     char train_data_path[1024];
-    snprintf(train_data_path, 1024, "%s-%05d", argv[15], rank);
+    snprintf(train_data_path, 1024, "%s-%05d", param.train_data_path.c_str(), rank);
     char test_data_path[1024];
-    snprintf(test_data_path, 1024, "%s-%05d", argv[16], rank);
-    if(rank == 0)std::cout<<"epochnum="<<epochnum<<"\tbatchsize="<<batchsize<<"\tbias="<<bias<<"\talpha="<<alpha<<"\tbeta="<<beta<<"\tlambda1="<<lambda1<<"\tlambda2="<<lambda2<<"\tfea_dim="<<fea_dim<<"\tfactor="<<factor<<"\tgroup="<<group<<"\tisffm="<<isffm<<"\tisfm="<<isfm<<"\tislr="<<islr<<std::endl;
+    snprintf(test_data_path, 1024, "%s-%05d", param.test_data_path.c_str(), rank);
+  
+    DML::LOAD_ALL_DATA train_data(train_data_path, rank, nproc);
+    train_data.load();
+    DML::LOAD_ALL_DATA test_data(test_data_path, rank, nproc);
+    test_data.load();
 
-    Load_Data test_data(test_data_path, fea_dim, factor, group, isffm, isfm, islr);
-    //test_data.load_data_batch(nproc, rank);
-    test_data.load_data_batch_direct_get_feadim();
+    DML::Predict predict(&test_data, &param, nproc, rank);
 
-    Predict predict(&test_data, nproc, rank);
-
-    Load_Data train_data(train_data_path, fea_dim, factor, group, isffm, isfm, islr); 
-    //train_data.load_data_batch(nproc, rank);
-    train_data.load_data_batch_direct_get_feadim();
-
-    if(strcmp(argv[1], "ftrl") == 0){
-        FTRL ftrl(&train_data, &predict, nproc, rank);
-        ftrl.epochs = epochnum;
-        ftrl.batch_size = batchsize;
-        ftrl.bias = bias;
-        ftrl.alpha = alpha;
-        ftrl.beta = beta;
-        ftrl.lambda1 = lambda1;
-        ftrl.lambda2 = lambda2;
-        ftrl.train();
+    if(param.isftrl == 1){
+        DML::FTRL_learner ftrl(&train_data, &predict, &param, nproc, rank);
+        ftrl.run();
         std::cout<<"rank "<<rank<<" train finish!"<<processor_name<<std::endl;
         predict.run(ftrl.loc_w, ftrl.loc_v);
     }
