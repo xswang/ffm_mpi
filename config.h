@@ -1,6 +1,6 @@
 #pragma once
 --epoch=1000
---batch_size=500
+--batch_size=50
 --bias=0.0
 --alpha=0.1
 --beta=1.0
@@ -10,10 +10,10 @@
 --factor=2
 --group=68
 --isffm=0
---isfm=1
---islr=0
+--isfm=0
+--islr=1
 --issgd=0
 --isftrl=1
 --isowlqn=0
---train_data_path=./data/v2v_train
---test_data_path=./data/v2v_test
+--train_data_path=./data/ffm_train
+--test_data_path=./data/ffm_test
