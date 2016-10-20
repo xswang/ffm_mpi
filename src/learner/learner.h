@@ -8,10 +8,11 @@
 
 namespace DML{
 class Send_datatype{
-        public:
-                    double key;
-                        double val;
+    public:
+        double key;
+        double val;
 };
+
 class Learner{
     public:
         Learner(Param *param) : param(param){
@@ -28,7 +29,6 @@ class Learner{
             loc_v = new double[v_dim]();
             for(int i = 0; i < v_dim; i++){
                 loc_v[i] = gaussrand();
-                std::cout<<"loc_v[i]"<<loc_v[i]<<std::endl;
             }
             loc_g_v = new double[v_dim]();
             glo_g_v = new double[v_dim];
@@ -107,14 +107,14 @@ class Learner{
                 return nonzero;
         }
         void filter_nonzero(double *a, long int n, std::vector<Send_datatype> &vec){
-                Send_datatype dt;
-                for(int i = 0; i < n; i++){
-                        if(a[i] != 0.0){
-                                dt.key = i;
-                                dt.val = a[i];
-                                vec.push_back(dt);
-                        }
+            Send_datatype dt;
+            for(int i = 0; i < n; i++){
+                if(a[i] != 0.0){
+                    dt.key = i;
+                    dt.val = a[i];
+                    vec.push_back(dt);
                 }
+            }
         }
 
     public:

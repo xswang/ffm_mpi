@@ -8,7 +8,7 @@ class FTRL_learner : public Learner{
     public:
         FTRL_learner(LOAD_ALL_DATA *train_data, Predict* predict, Param *param, int nproc, int rank) 
                 : Learner(param), data(train_data), pred(predict), param(param), nproc(nproc), rank(rank){
-                
+               Init(); 
         }
 
         ~FTRL_learner(){}
@@ -51,7 +51,7 @@ class FTRL_learner : public Learner{
         }
 
         void batch_gradient_calculate(){
-            int group = 0, index = 0; float value = 0.0, pctr = 0;
+            int group = 0, index = 0; float value = 0.0, pctr = 0.0;
             memset(loc_g, 0.0, param->fea_dim);//notation:
             memset(loc_g_v, 0.0, v_dim);//notation: 
 
@@ -130,7 +130,6 @@ class FTRL_learner : public Learner{
                 }
             }else if(rank == 0){
                 cblas_dcopy(param->fea_dim, loc_g, 1, glo_g, 1);
-                if(!param->islr) cblas_dcopy(v_dim, loc_g_v, 1, glo_g_v, 1);
                 for(int r = 1; r < nproc; r++){
                     std::vector<Send_datatype> recv_loc_g_vec;
                     recv_loc_g_vec.resize(param->fea_dim);
@@ -143,6 +142,7 @@ class FTRL_learner : public Learner{
                         glo_g[k] += v;
                     }
                     if(!param->islr){
+                        cblas_dcopy(v_dim, loc_g_v, 1, glo_g_v, 1);
                         std::vector<Send_datatype> recv_loc_g_v_vec;
                         recv_loc_g_v_vec.resize(v_dim);
                         MPI_Recv(&recv_loc_g_v_vec[0], v_dim, newType, r, 399, MPI_COMM_WORLD, &status);
@@ -168,8 +168,10 @@ class FTRL_learner : public Learner{
         void allreduce_weight(){
             if(rank == 0){
                 int loc_w_nonzero = filter(loc_w, param->fea_dim);
+
                 std::vector<Send_datatype> loc_w_vec;
                 filter_nonzero(loc_w, param->fea_dim, loc_w_vec);
+
                 std::vector<Send_datatype> loc_v_vec;
                 int loc_v_nonzero;
                 if(!param->islr){
@@ -194,12 +196,13 @@ class FTRL_learner : public Learner{
                     int v = recv_loc_w_vec[i].val;
                     loc_w[k] = v;
                 }
+
                 if(param->islr != 1){
                     std::vector<Send_datatype> recv_loc_v_vec;
                     recv_loc_v_vec.resize(v_dim);
                     MPI_Recv(&recv_loc_v_vec[0], v_dim, newType, 0, 3999, MPI_COMM_WORLD, &status);
                     int recv_loc_v_num;
-                    MPI_Get_count(&status, newType, &recv_loc_w_num);
+                    MPI_Get_count(&status, newType, &recv_loc_v_num);
                     memset(loc_v, 0.0, v_dim * sizeof(double));
                     for(int i = 0; i < recv_loc_v_num; i++){
                         int k = recv_loc_v_vec[i].key;
