@@ -4,8 +4,12 @@
 #include <cblas.h>
 #include <thread>
 #include <mutex>
+#include <pthread.h>
 
 namespace DML{
+        struct ThreadParam {
+                int batchsize4thread;
+        };
 class FTRL_learner : public Learner{
     public:
         FTRL_learner(LOAD_ALL_DATA *train_data, Predict* predict, Param *param, int nproc, int rank) 
@@ -51,21 +55,18 @@ class FTRL_learner : public Learner{
             }
             md.close();
         }
-        void batch_gradient_calculate_multithread(int thread_batch_size){
-            std::cout<<"my rank = "<<rank<<std::endl;
-                if(rank == 0)std::cout<<"hhhhhhhhh"<<std::endl;
+        void batch_gradient_calculate_multithread(int start, int end){
             int group = 0, index = 0; float value = 0.0, pctr = 0.0;
-            for(int line = 0; line < thread_batch_size; line++){
-                if(rank == 0)std::cout<<" line ==== "<<line<<std::endl;
+            for(int r = start; r < end; r++){
                 float wx = bias;
-                int ins_seg_num = data->fea_matrix[row].size();
+                int ins_seg_num = data->fea_matrix[r].size();
                 std::vector<float> vx_sum(param->factor, 0.0);
                 float vxvx = 0.0, vvxx = 0.0;
                 std::set<int>::iterator setIter;
                 for(int col = 0; col < ins_seg_num; col++){//for one instance
-                    group = data->fea_matrix[row][col].fgid;
-                    index = data->fea_matrix[row][col].fid;
-                    value = data->fea_matrix[row][col].val;
+                    group = data->fea_matrix[r][col].fgid;
+                    index = data->fea_matrix[r][col].fid;
+                    value = data->fea_matrix[r][col].val;
                     wx += loc_w[index] * value;
                     for(int k = 0; k < param->factor; k++){
                         if(param->islr) break;
@@ -87,11 +88,12 @@ class FTRL_learner : public Learner{
                 vxvx -= vvxx;
                 wx += vxvx * 1.0 / 2.0;
                 pctr = sigmoid(wx);
-                float delta = pctr - data->label[row];
+                float delta = pctr - data->label[r];
+
                 for(int col = 0; col < ins_seg_num; col++){
-                    group = data->fea_matrix[row][col].fgid;
-                    index = data->fea_matrix[row][col].fid;
-                    value = data->fea_matrix[row][col].val;
+                    group = data->fea_matrix[r][col].fgid;
+                    index = data->fea_matrix[r][col].fid;
+                    value = data->fea_matrix[r][col].val;
                     mutex.lock();
                     loc_g[index] += delta * value;
                     mutex.unlock();
@@ -111,10 +113,6 @@ class FTRL_learner : public Learner{
                         }
                     }
                 }
-                mutex.lock();
-                row++;
-                if(rank == 0)std::cout<<"row ==== "<<row<<std::endl;
-                mutex.unlock();
             }//end for
         }//end batch_gradient_calculate_multithread
 
@@ -336,31 +334,52 @@ class FTRL_learner : public Learner{
                 row = 0;
                 int batches = 0;
                 std::cout<<"epoch "<<epoch<<" ";
-                std::cout<<"rankkkkkk is ====================== "<<rank<<std::endl;
                 pred->run(loc_w, loc_v);
-                std::cout<<" is ====================== "<<rank<<std::endl;
                 if(rank == 0 && (epoch+1) % 20 == 0) dump(epoch);
+                for(int i = 0; i < batch_num_min; i++){
+                    memset(loc_g, 0.0, param->fea_dim);//notation:
+                    memset(loc_g_v, 0.0, v_dim);//notation:
+                    int core_num = std::thread::hardware_concurrency();
+                    core_num = 8;
+                    std::thread threads[core_num];
+                    int thread_batchsize = param->batch_size / core_num;
+                    int all_start = i * param->batch_size, all_end = (i + 1) * param->batch_size;
+                    int thread_batch = param->batch_size / core_num;
+                    for(int j = 0; j < core_num; j++){
+                        int start = all_start + j * thread_batch; 
+                        int end = all_start + (j + 1) * thread_batch;
+                        threads[j] = std::thread(&FTRL_learner::batch_gradient_calculate_multithread, this, start, end);
+                    }
+                    for(auto &t : threads){
+                        t.join();
+                    }
+                    allreduce_gradient();
+                    allreduce_weight();
+                }
+                /*
                 while(row < data->fea_matrix.size()){
                     if( (batches == batch_num_min - 1) ) break;
                     memset(loc_g, 0.0, param->fea_dim);//notation:
                     memset(loc_g_v, 0.0, v_dim);//notation:
                     //batch_gradient_calculate();
                     int core_num = std::thread::hardware_concurrency();
-                    std::vector<std::thread> threads;
+                    core_num = 8;
+                    std::thread threads[core_num];
                     int thread_batchsize = param->batch_size / core_num;
-                    ///* 
+                    // 
                     for(int i = 0; i < core_num; i++){
-                        threads.push_back(std::thread(&FTRL_learner::batch_gradient_calculate_multithread, this, thread_batchsize));
+                        threads[i] = std::thread(&FTRL_learner::batch_gradient_calculate_multithread, this, thread_batchsize);
                     }
                     for(auto &t : threads){
                         t.join();
                     }
-                    //*/
+                    //
                     if(row % 200000 == 0) std::cout<<"row = "<<row<<std::endl;
                     allreduce_gradient();
                     allreduce_weight();
                     batches++;
                 }
+                */
             }
         }
 

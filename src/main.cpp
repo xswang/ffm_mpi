@@ -16,7 +16,7 @@ int main(int argc,char* argv[]){
     DML::Param param(argc, argv);
     param.Init();
     
-    std::cout<<"my hostname is "<<processor_name<<" my rank is "<<rank<<std::endl;
+    //std::cout<<"my hostname is "<<processor_name<<" my rank is "<<rank<<std::endl;
 
     char train_data_path[1024];
     snprintf(train_data_path, 1024, "%s-%05d", param.train_data_path.c_str(), rank);
