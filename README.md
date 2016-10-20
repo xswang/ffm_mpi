@@ -32,11 +32,11 @@
 
     4.1. About model selection:
 
-        4.1.1. if you want to use LR(Logistic Regression) model only, set the parameter in run_ffm_mpi.sh as: isffm=0 isfm=0 islr=1
+        4.1.1. if you want to use LR(Logistic Regression) model only, set the parameter in config.h: isffm=0 isfm=0 islr=1
 
-        4.1.2. if you want to use FM(Factorization Machine) model only, set the parameter in run_ffm_mpi.sh as: isffm=0 isfm=1 islr=0
+        4.1.2. if you want to use FM(Factorization Machine) model only, set the parameter in config.h: isffm=0 isfm=1 islr=0
 
-        4.1.3. if you want to use FFM(Field-aware Factorization Machine) model only, set the parameter in run_ffm_mpi.sh as: isffm=1 isfm=0 islr=0
+        4.1.3. if you want to use FFM(Field-aware Factorization Machine) model only, set the parameter in config.h: isffm=1 isfm=0 islr=0
 
     4.2. Evaluation
   
@@ -44,19 +44,17 @@
 
     4.3 Save Model
    
-       save model to the model folder 
+       dump model to the model folder 
 
 5. Todo list
 
     1, multithread
 
-    2, refactor code
-
-    3, same model paralle on Parameter Server
+    2, same model paralle on Parameter Server
   
-    4, load data batch
+    3, load data batch
 
-    5, optimazation the learning algorithm
+    4, optimazation the learning algorithm
 
 6. Contact:
 
