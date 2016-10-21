@@ -4,7 +4,7 @@
 #include <cblas.h>
 #include <thread>
 #include <mutex>
-#include <pthread.h>
+#include <time.h>
 
 namespace DML{
         struct ThreadParam {
@@ -94,9 +94,9 @@ class FTRL_learner : public Learner{
                     group = data->fea_matrix[r][col].fgid;
                     index = data->fea_matrix[r][col].fid;
                     value = data->fea_matrix[r][col].val;
-                    mutex.lock();
+                    //mutex.lock();
                     loc_g[index] += delta * value;
-                    mutex.unlock();
+                    //mutex.unlock();
                     float vx = 0.0;
                     for(int k = 0; k < param->factor; k++){
                         if(param->islr) break;
@@ -106,9 +106,9 @@ class FTRL_learner : public Learner{
                             if(param->isfm) f = 0;
                             float tmpv = getElem(loc_v, k, index, f);
                             vx = tmpv * value;
-                            mutex.lock();
+                            //mutex.lock();
                             addVal(loc_g_v, -1 * delta * (vx_sum[k] - vx) * value, k, index, f);
-                            mutex.unlock();
+                            //mutex.unlock();
                             if(param->isfm) break;
                         }
                     }
@@ -330,20 +330,24 @@ class FTRL_learner : public Learner{
             int batch_num = data->fea_matrix.size() / param->batch_size, batch_num_min = 0;
             MPI_Allreduce(&batch_num, &batch_num_min, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
             std::cout<<"total epochs = "<<param->epoch<<" batch_num_min = "<<batch_num_min<<std::endl;
+            int core_num = std::thread::hardware_concurrency();
+            std::thread threads[core_num];
+
             for(int epoch = 0; epoch < param->epoch; epoch++){
+                clock_t start_time, finish_time;
                 row = 0;
                 int batches = 0;
                 std::cout<<"epoch "<<epoch<<" ";
                 pred->run(loc_w, loc_v);
                 if(rank == 0 && (epoch+1) % 20 == 0) dump(epoch);
+                start_time = clock();
+
                 for(int i = 0; i < batch_num_min; i++){
                     memset(loc_g, 0.0, param->fea_dim);//notation:
                     memset(loc_g_v, 0.0, v_dim);//notation:
-                    int core_num = std::thread::hardware_concurrency();
-                    core_num = 8;
-                    std::thread threads[core_num];
-                    int thread_batchsize = param->batch_size / core_num;
-                    int all_start = i * param->batch_size, all_end = (i + 1) * param->batch_size;
+                    //batch_gradient_calculate();
+
+                    int all_start = i * param->batch_size;
                     int thread_batch = param->batch_size / core_num;
                     for(int j = 0; j < core_num; j++){
                         int start = all_start + j * thread_batch; 
@@ -353,33 +357,13 @@ class FTRL_learner : public Learner{
                     for(auto &t : threads){
                         t.join();
                     }
+
                     allreduce_gradient();
                     allreduce_weight();
                 }
-                /*
-                while(row < data->fea_matrix.size()){
-                    if( (batches == batch_num_min - 1) ) break;
-                    memset(loc_g, 0.0, param->fea_dim);//notation:
-                    memset(loc_g_v, 0.0, v_dim);//notation:
-                    //batch_gradient_calculate();
-                    int core_num = std::thread::hardware_concurrency();
-                    core_num = 8;
-                    std::thread threads[core_num];
-                    int thread_batchsize = param->batch_size / core_num;
-                    // 
-                    for(int i = 0; i < core_num; i++){
-                        threads[i] = std::thread(&FTRL_learner::batch_gradient_calculate_multithread, this, thread_batchsize);
-                    }
-                    for(auto &t : threads){
-                        t.join();
-                    }
-                    //
-                    if(row % 200000 == 0) std::cout<<"row = "<<row<<std::endl;
-                    allreduce_gradient();
-                    allreduce_weight();
-                    batches++;
-                }
-                */
+
+                finish_time = clock();
+                std::cout<<"Elasped time:"<<(finish_time - start_time) * 1.0 / CLOCKS_PER_SEC<<std::endl; 
             }
         }
 
