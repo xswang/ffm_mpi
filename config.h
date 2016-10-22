@@ -1,14 +1,14 @@
 #pragma once
---epoch=5000
---batch_size=4000
+--epoch=1000
+--batch_size=8000
 --bias=0.0
 --alpha=0.1
 --beta=1.0
 --lambda1=0.001
 --lambda2=0.0
---fea_dim=240000
+--fea_dim=400000
 --factor=2
---group=68
+--group=42
 --isffm=0
 --isfm=0
 --islr=1

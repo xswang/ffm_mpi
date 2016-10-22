@@ -1,8 +1,8 @@
 #!/bin/bash
 INCLUDEPATH = -I/usr/local/include/ -I/usr/include -I/opt/OpenBLAS/include
 LIBRARYPATH = -L/usr/local/lib -L/opt/OpenBLAS/lib
-LIBRARY = -lpthread -lopenblas -lm -lgflags 
-CPP_tag = -std=gnu++11
+LIBRARY = -lpthread -lopenblas -lm -lgflags -fopenmp 
+CPP_tag = -std=gnu++11 -fopenmp
 
 LIB=/home/services/xiaoshu/lib
 INCLUDE=/home/services/xiaoshu/include

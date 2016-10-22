@@ -5,6 +5,7 @@
 #include <vector>
 #include <set>
 #include "mpi.h"
+#include <omp.h>
 
 namespace DML{
 class Send_datatype{
@@ -100,15 +101,17 @@ class Learner{
         }
 
         long int filter(double* a, long int n){
-                int nonzero = 0;
-                for(int i = 0; i < n; i++){
-                        if(a[i] != 0.0) nonzero += 1;
-                }
-                return nonzero;
+            int nonzero = 0;
+            //#pragma omp parallel for   
+            for(int i = 0; i < n; ++i){
+                if(a[i] != 0.0) nonzero += 1;
+            }
+            return nonzero;
         }
         void filter_nonzero(double *a, long int n, std::vector<Send_datatype> &vec){
             Send_datatype dt;
-            for(int i = 0; i < n; i++){
+            //#pragma omp parallel for
+            for(int i = 0; i < n; ++i){
                 if(a[i] != 0.0){
                     dt.key = i;
                     dt.val = a[i];

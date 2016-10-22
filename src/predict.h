@@ -6,6 +6,7 @@
 #include <math.h>
 #include <set>
 #include "mpi.h"
+#include <omp.h>
 
 namespace DML{
 typedef struct{
@@ -26,7 +27,7 @@ class Predict{
         g_nclk = new float[MAX_ARRAY_SIZE];
         g_clk = new float[MAX_ARRAY_SIZE];
 
-        for(int i = 0; i < param->group; i++){
+        for(int i = 0; i < param->group; ++i){
             std::set<int> s;
             for(int j = 0; j < param->group; j += 1){
                 s.insert(j);
@@ -48,28 +49,28 @@ class Predict{
         else return arr[i * param->fea_dim*param->group + j * param->group + k];
     }
     void print1dim(double* arr){
-        for(int i = 0; i < param->factor * param->fea_dim * param->group; i++)
+        for(int i = 0; i < param->factor * param->fea_dim * param->group; ++i)
         std::cout<<arr[i]<<std::endl;
     }
     void predict(double* glo_w, double* glo_v){
         int group = 0, index = 0; float value = 0.0; float pctr = 0.0;
         std::cout<<"test data size = "<<data->fea_matrix.size()<<std::endl;
-        for(int i = 0; i < data->fea_matrix.size(); i++) {
+        for(int i = 0; i < data->fea_matrix.size(); ++i) {
 	        float wx = 0.0;
-            for(int j = 0; j < data->fea_matrix[i].size(); j++) {
+            for(int j = 0; j < data->fea_matrix[i].size(); ++j) {
                 index = data->fea_matrix[i][j].fid;
                 value = data->fea_matrix[i][j].val;
                 wx += glo_w[index] * value;
             }
             std::set<int>::iterator setIter;
-            for(int k = 0; k < param->factor; k++){
+            for(int k = 0; k < param->factor; ++k){
                 if(param->islr) break;
                 float vxvx = 0.0, vvxx = 0.0;
-                for(int col = 0; col < data->fea_matrix[i].size(); col++){
+                for(int col = 0; col < data->fea_matrix[i].size(); ++col){
                     group = data->fea_matrix[i][col].fgid;
                     index = data->fea_matrix[i][col].fid;
                     value = data->fea_matrix[i][col].val;
-                    for(int f = 0; f < param->group; f++){
+                    for(int f = 0; f < param->group; ++f){
                         setIter = cross_field[group].find(f);
                         if(setIter == cross_field[group].end()) continue;
                         if(param->isfm) f = 0;
@@ -107,7 +108,7 @@ class Predict{
         memset(g_nclk, 0.0, MAX_ARRAY_SIZE * sizeof(float));
         memset(g_clk, 0.0, MAX_ARRAY_SIZE * sizeof(float));
         int cnt = result_list.size();
-        for(int i = 0; i < cnt; i++){
+        for(int i = 0; i < cnt; ++i){
             long index = result_list[i].idx;
             g_nclk[index] += result_list[i].nclk;
             g_clk[index] += result_list[i].clk;
@@ -120,7 +121,7 @@ class Predict{
             double old_clk_sum = 0.0;
             double clksum_multi_nclksum = 0.0;
             auc_res = 0.0;
-            for(int i = 0; i < MAX_ARRAY_SIZE; i++){
+            for(int i = 0; i < MAX_ARRAY_SIZE; ++i){
                     old_clk_sum = clk_sum;
                     clk_sum += all_clk[i];
                     nclk_sum += all_nclk[i];
@@ -137,14 +138,14 @@ class Predict{
             MPI_Send(g_clk, MAX_ARRAY_SIZE, MPI_FLOAT, 0, 1999, MPI_COMM_WORLD);
         }
         else if(rank == 0){
-            for(int i = 0; i < MAX_ARRAY_SIZE; i++){
+            for(int i = 0; i < MAX_ARRAY_SIZE; ++i){
                 g_all_non_clk[i] = g_nclk[i];
                 g_all_clk[i] = g_clk[i];
             }
-            for(int i = 1; i < nprocs; i++){
+            for(int i = 1; i < nprocs; ++i){
                 MPI_Recv(g_nclk, MAX_ARRAY_SIZE, MPI_FLOAT, i, 199, MPI_COMM_WORLD, &status);
                 MPI_Recv(g_clk, MAX_ARRAY_SIZE, MPI_FLOAT, i, 1999, MPI_COMM_WORLD, &status);
-                for(int i = 0; i < MAX_ARRAY_SIZE; i++){
+                for(int i = 0; i < MAX_ARRAY_SIZE; ++i){
                     g_all_non_clk[i] += g_nclk[i];
                     g_all_clk[i] += g_clk[i];
                 }
