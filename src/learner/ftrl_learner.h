@@ -281,7 +281,8 @@ class FTRL_learner : public Learner{
             std::cout<<"total epochs = "<<param->epoch<<" batch_num_min = "<<batch_num_min<<std::endl;
             int core_num = std::thread::hardware_concurrency();
             std::thread threads[core_num];
-
+            
+            clock_t pstart, pend;
             clock_t start_time, finish_time;
             clock_t send_time, recv_time;
             ThreadPool pool(core_num);
@@ -290,10 +291,15 @@ class FTRL_learner : public Learner{
                 row = 0;
                 int batches = 0;
                 std::cout<<"epoch "<<epoch<<" ";
-                pred->run(loc_w, loc_v);
+                if((epoch + 1) % 10){
+                    pstart = clock();
+                    pred->run(loc_w, loc_v);
+                    pend = clock();
+                    std::cout<<"predict time:"<<(pend - pstart) * 1.0 / CLOCKS_PER_SEC<<std::endl;
+                }
                 if(rank == 0 && (epoch+1) % 20 == 0) dump(epoch);
-                start_time = clock();
 
+                start_time = clock();
                 for(int i = 0; i < batch_num_min; ++i){
                     memset(loc_g, 0.0, param->fea_dim);//notation:
                     memset(loc_g_v, 0.0, v_dim);//notation:
@@ -311,9 +317,9 @@ class FTRL_learner : public Learner{
                     allreduce_gradient();
                     allreduce_weight();
                     recv_time = clock();
+
                     if(i == batch_num_min -1) std::cout<<"NET IO time:"<<(recv_time - send_time) * 1.0 / CLOCKS_PER_SEC<<std::endl;
                 }
-
                 finish_time = clock();
                 std::cout<<"Elasped time:"<<(finish_time - start_time) * 1.0 / CLOCKS_PER_SEC<<std::endl; 
             }
