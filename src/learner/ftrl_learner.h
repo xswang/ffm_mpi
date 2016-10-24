@@ -6,6 +6,7 @@
 #include <mutex>
 #include <time.h>
 #include <omp.h>
+#include "../threadpool/thread_pool.h"
 
 namespace DML{
         struct ThreadParam {
@@ -281,8 +282,11 @@ class FTRL_learner : public Learner{
             int core_num = std::thread::hardware_concurrency();
             std::thread threads[core_num];
 
+            clock_t start_time, finish_time;
+            clock_t send_time, recv_time;
+            ThreadPool pool(core_num);
+
             for(int epoch = 0; epoch < param->epoch; ++epoch){
-                clock_t start_time, finish_time;
                 row = 0;
                 int batches = 0;
                 std::cout<<"epoch "<<epoch<<" ";
@@ -298,16 +302,16 @@ class FTRL_learner : public Learner{
                     int all_start = i * param->batch_size;
                     int thread_batch = param->batch_size / core_num;
                     for(int j = 0; j < core_num; ++j){
-                        int start = all_start + j * thread_batch; 
+                        int start = all_start + j * thread_batch;
                         int end = all_start + (j + 1) * thread_batch;
-                        threads[j] = std::thread(&FTRL_learner::batch_gradient_calculate_multithread, this, start, end);
-                    }
-                    for(auto &t : threads){
-                        t.join();
+                        pool.enqueue(std::bind(&FTRL_learner::batch_gradient_calculate_multithread, this, start, end));
                     }
 
+                    send_time = clock();
                     allreduce_gradient();
                     allreduce_weight();
+                    recv_time = clock();
+                    if(i == batch_num_min -1) std::cout<<"NET IO time:"<<(recv_time - send_time) * 1.0 / CLOCKS_PER_SEC<<std::endl;
                 }
 
                 finish_time = clock();
