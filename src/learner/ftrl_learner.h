@@ -177,6 +177,7 @@ class FTRL_learner : public Learner{
                     cblas_dscal(v_dim, 1.0/nproc, glo_g_v, 1);
                     update_v();
                 }
+
             }
         }
 
@@ -306,8 +307,8 @@ class FTRL_learner : public Learner{
 
                 start_time = clock();
                 for(int i = 0; i < batch_num_min; ++i){
-                    memset(loc_g, 0.0, param->fea_dim);//notation:
-                    memset(loc_g_v, 0.0, v_dim);//notation:
+                    memset(loc_g, 0.0, param->fea_dim * sizeof(double));//notation:
+                    memset(loc_g_v, 0.0, v_dim * sizeof(double));//notation:
                     //batch_gradient_calculate();
 
                     int all_start = i * param->batch_size;
