@@ -309,29 +309,29 @@ class FTRL_learner : public Learner{
                 for(int i = 0; i < batch_num_min; ++i){
                     memset(loc_g, 0.0, param->fea_dim * sizeof(double));//notation:
                     memset(loc_g_v, 0.0, v_dim * sizeof(double));//notation:
-                    //batch_gradient_calculate();
-
-                    int all_start = i * param->batch_size;
-                    int thread_batch = param->batch_size / core_num;
-                    for(int j = 0; j < core_num; ++j){
-                        int start = all_start + j * thread_batch;
-                        int end = all_start + (j + 1) * thread_batch;
-                        pool.enqueue(std::bind(&FTRL_learner::batch_gradient_calculate_multithread, this, start, end));
+                    if(param->issinglethread){
+                        batch_gradient_calculate();
+                        allreduce_gradient();
+                        allreduce_weight();
                     }
-
-                    //send_time = clock();
-                    mutex.lock();
-                    allreduce_gradient();
-                    allreduce_weight();
-                    mutex.unlock();
-                    //recv_time = clock();
-
-                    //if(i == batch_num_min -1) std::cout<<"NET IO time:"<<(recv_time - send_time) * 1.0 / CLOCKS_PER_SEC<<std::endl;
+                    else if(param->ismultithread){
+                        int all_start = i * param->batch_size;
+                        int thread_batch = param->batch_size / core_num;
+                        for(int j = 0; j < core_num; ++j){
+                            int start = all_start + j * thread_batch;
+                            int end = all_start + (j + 1) * thread_batch;
+                            pool.enqueue(std::bind(&FTRL_learner::batch_gradient_calculate_multithread, this, start, end));
+                        }
+                        mutex.lock();
+                        allreduce_gradient();
+                        allreduce_weight();
+                        mutex.unlock();
+                    }
                 }
                 finish_time = clock();
                 std::cout<<"Elasped time:"<<(finish_time - start_time) * 1.0 / CLOCKS_PER_SEC<<std::endl; 
-            }
-        }
+            }//end for epoch
+        }//end run
 
     public:
         std::mutex mutex;

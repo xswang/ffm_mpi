@@ -11,6 +11,8 @@ DEFINE_int64(islr, 0, "");
 DEFINE_int64(issgd, 0, "");
 DEFINE_int64(isftrl, 0, "");
 DEFINE_int64(isowlqn, 0, "");
+DEFINE_int64(issinglethread, 0, "");
+DEFINE_int64(ismultithread, 0, "");
 
 DEFINE_double(bias, 0.0, "bias");
 DEFINE_double(alpha, 0.0, "alpha");
@@ -44,6 +46,8 @@ class Param{
             issgd = FLAGS_issgd;
             isftrl = FLAGS_isftrl;
             isowlqn = FLAGS_isowlqn;
+            issinglethread = FLAGS_issinglethread;
+            ismultithread = FLAGS_ismultithread;
             train_data_path = FLAGS_train_data_path;
             test_data_path = FLAGS_test_data_path;
         }
@@ -66,6 +70,8 @@ class Param{
         int issgd;
         int isftrl;
         int isowlqn;
+        int issinglethread;
+        int ismultithread;
         std::string train_data_path;
         std::string test_data_path;
 };
