@@ -30,6 +30,9 @@ class FTRL_learner : public Learner{
                 cross_field.push_back(s);
             }
 
+            loc_g_tmp = new double[param->fea_dim];
+            loc_g_v_tmp = new double[v_dim];
+
             alpha_v = 0.0;
             beta_v = 0.00001;
             lambda1_v = 0.000001;
@@ -60,6 +63,8 @@ class FTRL_learner : public Learner{
         void batch_gradient_calculate(){}
         void batch_gradient_calculate_multithread(int start, int end){
             int group = 0, index = 0; float value = 0.0, pctr = 0.0;
+            memset(loc_g_tmp, 0.0, sizeof(double) * param->fea_dim);
+            if(!param->islr) memset(loc_g_v_tmp, 0.0, sizeof(double) * v_dim);
             for(int r = start; r < end; ++r){
                 float wx = bias;
                 int ins_seg_num = data->fea_matrix[r].size();
@@ -97,9 +102,7 @@ class FTRL_learner : public Learner{
                     group = data->fea_matrix[r][col].fgid;
                     index = data->fea_matrix[r][col].fid;
                     value = data->fea_matrix[r][col].val;
-                    //mutex.lock();
-                    loc_g[index] += delta * value;
-                    //mutex.unlock();
+                    loc_g_tmp[index] += delta * value;
                     float vx = 0.0;
                     for(int k = 0; k < param->factor; ++k){
                         if(param->islr) break;
@@ -109,14 +112,16 @@ class FTRL_learner : public Learner{
                             if(param->isfm) f = 0;
                             float tmpv = getElem(loc_v, k, index, f);
                             vx = tmpv * value;
-                            //mutex.lock();
-                            addVal(loc_g_v, -1 * delta * (vx_sum[k] - vx) * value, k, index, f);
-                            //mutex.unlock();
+                            addVal(loc_g_v_tmp, -1 * delta * (vx_sum[k] - vx) * value, k, index, f);
                             if(param->isfm) break;
                         }
                     }
                 }
             }//end for
+            mutex.lock();
+            cblas_dcopy(param->fea_dim, loc_g_tmp, 1, loc_g, 1);
+            if(!param->islr)cblas_dcopy(v_dim, loc_g_v_tmp, 1, loc_g_v, 1);
+            mutex.unlock();
         }//end batch_gradient_calculate_multithread
 
         void allreduce_gradient(){
@@ -291,7 +296,7 @@ class FTRL_learner : public Learner{
                 row = 0;
                 int batches = 0;
                 std::cout<<"epoch "<<epoch<<" ";
-                if((epoch + 1) % 10){
+                if((epoch + 1) % 10 == 0){
                     pstart = clock();
                     pred->run(loc_w, loc_v);
                     pend = clock();
@@ -313,12 +318,12 @@ class FTRL_learner : public Learner{
                         pool.enqueue(std::bind(&FTRL_learner::batch_gradient_calculate_multithread, this, start, end));
                     }
 
-                    send_time = clock();
+                    //send_time = clock();
                     allreduce_gradient();
                     allreduce_weight();
-                    recv_time = clock();
+                    //recv_time = clock();
 
-                    if(i == batch_num_min -1) std::cout<<"NET IO time:"<<(recv_time - send_time) * 1.0 / CLOCKS_PER_SEC<<std::endl;
+                    //if(i == batch_num_min -1) std::cout<<"NET IO time:"<<(recv_time - send_time) * 1.0 / CLOCKS_PER_SEC<<std::endl;
                 }
                 finish_time = clock();
                 std::cout<<"Elasped time:"<<(finish_time - start_time) * 1.0 / CLOCKS_PER_SEC<<std::endl; 
@@ -330,6 +335,8 @@ class FTRL_learner : public Learner{
         int row;
         int loc_g_nonzero;
         int loc_g_v_nonzero;
+        double *loc_g_tmp;
+        double *loc_g_v_tmp;
         float bias;
 
         float alpha;
