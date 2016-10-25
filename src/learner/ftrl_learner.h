@@ -320,8 +320,10 @@ class FTRL_learner : public Learner{
                     }
 
                     //send_time = clock();
+                    mutex.lock();
                     allreduce_gradient();
                     allreduce_weight();
+                    mutex.unlock();
                     //recv_time = clock();
 
                     //if(i == batch_num_min -1) std::cout<<"NET IO time:"<<(recv_time - send_time) * 1.0 / CLOCKS_PER_SEC<<std::endl;
