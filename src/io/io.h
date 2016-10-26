@@ -2,7 +2,7 @@
 #include <fstream>
 #include <iostream>
 
-namespace DML{
+namespace dml{
 
 struct kv{
     int fgid;

@@ -8,7 +8,7 @@
 #include "mpi.h"
 #include <omp.h>
 
-namespace DML{
+namespace dml{
 typedef struct{
     float clk;
     float nclk;
@@ -18,7 +18,7 @@ typedef struct{
 class Predict{
     public:
     std::vector<std::set<int> > cross_field;
-    Predict(LOAD_ALL_DATA* load_data, Param *param, int total_num_proc, int my_rank) 
+    Predict(LoadAllData* load_data, Param *param, int total_num_proc, int my_rank) 
             : data(load_data), param(param), nproc(total_num_proc), rank(my_rank){
         pctr = 0.0;
         MAX_ARRAY_SIZE = 1e6;
@@ -165,7 +165,7 @@ class Predict{
     }
 
     private:
-    LOAD_ALL_DATA* data;
+    LoadAllData* data;
     Param *param;
     std::vector<clkinfo> result_list;
     int MAX_ARRAY_SIZE;

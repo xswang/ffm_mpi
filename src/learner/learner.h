@@ -7,7 +7,7 @@
 #include "mpi.h"
 #include <omp.h>
 
-namespace DML{
+namespace dml{
 class Send_datatype{
     public:
         double key;

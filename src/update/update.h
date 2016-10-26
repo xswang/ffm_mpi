@@ -1,6 +1,6 @@
 #pragma once
 #include "param.h"
-namespace{
+namespace dml{
 class Update(){
     public:
         Update(Param *param) : param(param){}

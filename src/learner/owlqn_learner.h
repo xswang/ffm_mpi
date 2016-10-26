@@ -1,6 +1,6 @@
 #pragma once
 
-namespace DML{
+namespace dml{
 class OWLQN_learner : Learner{
     public:
         void Init();

@@ -23,7 +23,7 @@ DEFINE_double(lambda2, 0.0, "");
 DEFINE_string(train_data_path, "", "");
 DEFINE_string(test_data_path, "", "");
 
-namespace DML{
+namespace dml{
 class Param{
     public:
         Param(int &argc, char *argv[]) : argc(argc), argv(argv){}
