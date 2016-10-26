@@ -19,7 +19,10 @@ class FtrlLearner : public Learner{
                 : Learner(param), data(train_data), pred(predict), param(param), nproc(nproc), rank(rank){
                Init(); 
         }
-        ~FtrlLearner(){}
+        ~FtrlLearner(){
+            delete[] loc_g_tmp;
+            delete[] loc_g_v_tmp;
+        }
 
         void Init(){
             for(int i = 0; i < param->group; ++i){
@@ -61,8 +64,8 @@ class FtrlLearner : public Learner{
             md.close();
         }
 
-        void batch_gradient_calculate();
-        void batch_gradient_calculate_multithread(int start, int end);
+        void calculate_batch_gradient_singlethread();
+        void calculate_batch_gradient_multithread(int start, int end);
         void allreduce_gradient();
         void allreduce_weight();
 
@@ -121,11 +124,17 @@ class FtrlLearner : public Learner{
 
     public:
         std::mutex mutex;
+        MPI_Status status;
+        LoadAllData *data;
+        Predict *pred;
+        Param *param;
+
+        double *loc_g_tmp;
+        double *loc_g_v_tmp;
+
         int row;
         int loc_g_nonzero;
         int loc_g_v_nonzero;
-        double *loc_g_tmp;
-        double *loc_g_v_tmp;
         float bias;
 
         float alpha;
@@ -137,12 +146,6 @@ class FtrlLearner : public Learner{
         float beta_v;
         float lambda1_v;
         float lambda2_v;
-
-    public:
-        MPI_Status status;
-        LoadAllData *data;
-        Predict *pred;
-        Param *param;
 
         int nproc;
         int rank;

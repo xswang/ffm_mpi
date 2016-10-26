@@ -48,25 +48,42 @@ class Learner{
                             );
             newType.Commit();
         }
-        ~Learner(){}
+        ~Learner(){
+            delete[] loc_w;
+            delete[] loc_v;
+
+            delete[] loc_g;
+            delete[] glo_g;
+            delete[] loc_sigma;
+            delete[] loc_n;
+            delete[] loc_z;
+
+            delete[] loc_g_v;
+            delete[] glo_g_v;
+            delete[] loc_sigma_v;
+            delete[] loc_n_v;
+            delete[] loc_z_v;
+        }
+
         virtual void Init() = 0;
-        virtual void batch_gradient_calculate() = 0;
+        virtual void calculate_batch_gradient_singlethread() = 0;
+        virtual void calculate_batch_gradient_multithread(int start, int end) = 0;
         virtual void update_w() = 0;
         virtual void update_v() = 0;
         virtual void dump(int epoch) = 0;
     public:
         double gaussrand(){
-                static double V1, V2, S;
-                static int phase = 0;
-                double X;
-                if ( phase == 0 ) {
-                        do {
+            static double V1, V2, S;
+            static int phase = 0;
+            double X;
+            if(phase == 0){
+                do{
                     double U1 = (double)rand() / RAND_MAX;
                     double U2 = (double)rand() / RAND_MAX;
                     V1 = 2 * U1 - 1;
                     V2 = 2 * U2 - 1;
                     S = V1 * V1 + V2 * V2;
-                } while(S >= 1 || S == 0);
+                }while(S >= 1 || S == 0);
                 X = V1 * sqrt(-2 * log(S) / S);
             }
             else{
@@ -91,13 +108,13 @@ class Learner{
         }
 
         void putVal(double* arr, float val, int i, int j, int k){
-                if(param->isfm) arr[i*param->fea_dim + j + k] = val;
-                else arr[i*param->fea_dim*param->group + j * param->group + k] = val;
+            if(param->isfm) arr[i*param->fea_dim + j + k] = val;
+            else arr[i*param->fea_dim*param->group + j * param->group + k] = val;
         }
 
         void addVal(double* arr, int val, int i, int j, int k){
-                if(param->isfm) arr[i * param->fea_dim + j + k] += val;
-                else arr[i * param->fea_dim*param->group + j * param->group + k] += val;
+            if(param->isfm) arr[i * param->fea_dim + j + k] += val;
+            else arr[i * param->fea_dim*param->group + j * param->group + k] += val;
         }
 
         long int filter(double* a, long int n){
@@ -129,6 +146,7 @@ class Learner{
 
         double *loc_w;
         double *loc_v;
+
         double* loc_g;
         double* glo_g;
         double* loc_z;

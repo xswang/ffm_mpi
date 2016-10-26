@@ -27,7 +27,7 @@ void FtrlLearner::run(){
         if(param->issinglethread){
             while(row < data->fea_matrix.size()){
                 if( (batches == batch_num_min - 1) ) break;
-                batch_gradient_calculate();
+                calculate_batch_gradient_singlethread();
                 if(row % 200000 == 0) std::cout<<"row = "<<row<<std::endl;
                 allreduce_gradient();
                 allreduce_weight();
@@ -39,13 +39,12 @@ void FtrlLearner::run(){
             for(int i = 0; i < batch_num_min; ++i){
                 memset(loc_g, 0.0, param->fea_dim * sizeof(double));//notation:
                 memset(loc_g_v, 0.0, v_dim * sizeof(double));//notation:
-                std::cout<<"thread type :"<<param->issinglethread<<std::endl;
                 int all_start = i * param->batch_size;
                 int thread_batch = param->batch_size / core_num;
                 for(int j = 0; j < core_num; ++j){
                     int start = all_start + j * thread_batch;
                     int end = all_start + (j + 1) * thread_batch;
-                    pool.enqueue(std::bind(&FtrlLearner::batch_gradient_calculate_multithread, this, start, end));
+                    pool.enqueue(std::bind(&FtrlLearner::calculate_batch_gradient_multithread, this, start, end));
                 }
                 mutex.lock();
                 allreduce_gradient();
@@ -58,7 +57,7 @@ void FtrlLearner::run(){
     }
 }//end run
 
-void FtrlLearner::batch_gradient_calculate(){
+void FtrlLearner::calculate_batch_gradient_singlethread(){
     int group = 0, index = 0; float value = 0.0, pctr = 0.0;
     for(int line = 0; line < param->batch_size; line++){
         float wx = bias;
@@ -115,7 +114,7 @@ void FtrlLearner::batch_gradient_calculate(){
     }//end for
 }//end batch_gradient_calculate
 
-void FtrlLearner::batch_gradient_calculate_multithread(int start, int end){
+void FtrlLearner::calculate_batch_gradient_multithread(int start, int end){
     int group = 0, index = 0; float value = 0.0, pctr = 0.0;
     memset(loc_g_tmp, 0.0, sizeof(double) * param->fea_dim);
     if(!param->islr) memset(loc_g_v_tmp, 0.0, sizeof(double) * v_dim);

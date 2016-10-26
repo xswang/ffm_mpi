@@ -1,5 +1,6 @@
 #pragma once
 #include <gflags/gflags.h>
+
 DEFINE_int64(epoch, 0, "epoch");
 DEFINE_int64(batch_size, 0, "batchsize");
 DEFINE_int64(fea_dim, 0, "");
@@ -26,10 +27,13 @@ DEFINE_string(test_data_path, "", "");
 namespace dml{
 class Param{
     public:
-        Param(int &argc, char *argv[]) : argc(argc), argv(argv){}
-        ~Param(){}
-        void Init(){
+        Param(int &argc, char *argv[]) : argc(argc), argv(argv){
             ::google::ParseCommandLineFlags(&argc, &argv, true);
+            Init();
+        }
+        ~Param(){}
+
+        void Init(){
             epoch = FLAGS_epoch;
             batch_size = FLAGS_batch_size;
             bias = FLAGS_fea_dim;

@@ -13,8 +13,8 @@ int main(int argc,char* argv[]){
     MPI_Comm_rank(MPI_COMM_WORLD,&rank);
     MPI_Comm_size(MPI_COMM_WORLD,&nproc);
     MPI_Get_processor_name(processor_name,&kRankNameLength);
+
     dml::Param param(argc, argv);
-    param.Init();
     
     char train_data_path[1024];
     snprintf(train_data_path, 1024, "%s-%05d", param.train_data_path.c_str(), rank);
@@ -31,7 +31,6 @@ int main(int argc,char* argv[]){
     if(param.isftrl == 1){
         dml::FtrlLearner ftrl(&train_data, &predict, &param, nproc, rank);
         ftrl.run();
-        std::cout<<"rank "<<rank<<" train finish!"<<processor_name<<std::endl;
         predict.run(ftrl.loc_w, ftrl.loc_v);
     }
 

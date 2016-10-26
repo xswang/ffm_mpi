@@ -20,23 +20,25 @@ class IO{
         void Init(){
             fin_.open(file_path, std::ios::in);
             if(!fin_.is_open()){
-                std::cout<<"open file"<<file_path<<" error!"<<std::endl;
+                std::cout<<"open file "<<file_path<<" error!"<<std::endl;
                 exit(1);
             }else{
-                std::cout<<"open file"<<file_path<<" sucess!"<<std::endl;
+                std::cout<<"open file "<<file_path<<" sucess!"<<std::endl;
             }
         }
 
         virtual void load() = 0;
 
     public:
-        const char *file_path;
         std::ifstream fin_;
-        typedef kv key_val;
         std::string line;
+        typedef kv key_val;
+        const char *file_path;
+
         int fgid;
-        int fid;
+        long int fid;
         float val;
+
         int nchar;
         int y;
 };
