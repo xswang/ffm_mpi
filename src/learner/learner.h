@@ -66,7 +66,6 @@ class Learner{
         }
 
         virtual void Init() = 0;
-        virtual void calculate_batch_gradient_singlethread() = 0;
         virtual void calculate_batch_gradient_multithread(int start, int end) = 0;
         virtual void update_w() = 0;
         virtual void update_v() = 0;
@@ -140,6 +139,7 @@ class Learner{
     public:
         MPI::Datatype newType;
         Param *param;
+        std::set<int>::iterator setIter;
         std::vector<std::set<int> > cross_field;
 
         int v_dim;

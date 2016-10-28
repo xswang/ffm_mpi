@@ -44,4 +44,4 @@ void LoadData::load_batch_data(int num){
     }//end for
 }//end load
 
-}
+}//end namespace

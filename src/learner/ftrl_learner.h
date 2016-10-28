@@ -66,8 +66,8 @@ class FtrlLearner : public Learner{
             md.close();
         }
 
-        void update_gradient(int, float&, std::vector<float>&, std::set<int>::iterator&);
-        void calculate_batch_gradient_singlethread();
+        void run();
+        void update_gradient(int, int r, float&, std::vector<float>&);
         void calculate_batch_gradient_multithread(int start, int end);
         void allreduce_gradient();
         void allreduce_weight();
@@ -124,22 +124,18 @@ class FtrlLearner : public Learner{
                 }//end for
             }//end for
         }//end update_v
-
-        void run();
-
     public:
         std::mutex mutex;
         MPI_Status status;
+        Param *param;
         LoadData *data;
         Predict *pred;
-        Param *param;
 
         int core_num;
 
         double *loc_g_tmp;
         double *loc_g_v_tmp;
 
-        int row;
         int loc_g_nonzero;
         int loc_g_v_nonzero;
         float bias;
