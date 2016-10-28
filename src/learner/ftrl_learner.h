@@ -6,6 +6,7 @@
 #include <mutex>
 #include <time.h>
 #include <omp.h>
+#include "../io/load_data.h"
 #include "../threadpool/thread_pool.h"
 
 namespace dml{
@@ -15,7 +16,7 @@ struct ThreadParam {
 
 class FtrlLearner : public Learner{
     public:
-        FtrlLearner(LoadAllData *train_data, Predict* predict, Param *param, int nproc, int rank) 
+        FtrlLearner(LoadData *train_data, Predict* predict, Param *param, int nproc, int rank) 
                 : Learner(param), data(train_data), pred(predict), param(param), nproc(nproc), rank(rank){
                Init(); 
         }
@@ -25,6 +26,7 @@ class FtrlLearner : public Learner{
         }
 
         void Init(){
+            core_num = std::thread::hardware_concurrency();
             for(int i = 0; i < param->group; ++i){
                 std::set<int> s;
                 for(int j = 0; j < param->group; j += 1){
@@ -64,10 +66,13 @@ class FtrlLearner : public Learner{
             md.close();
         }
 
+        void update_gradient(int, float&, std::vector<float>&, std::set<int>::iterator&);
         void calculate_batch_gradient_singlethread();
         void calculate_batch_gradient_multithread(int start, int end);
         void allreduce_gradient();
         void allreduce_weight();
+        void train_online(ThreadPool& pool);
+        void train_batch(ThreadPool& pool);
 
         void update_w(){
             #pragma omp parallel for
@@ -125,9 +130,11 @@ class FtrlLearner : public Learner{
     public:
         std::mutex mutex;
         MPI_Status status;
-        LoadAllData *data;
+        LoadData *data;
         Predict *pred;
         Param *param;
+
+        int core_num;
 
         double *loc_g_tmp;
         double *loc_g_v_tmp;

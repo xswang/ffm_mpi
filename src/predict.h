@@ -17,7 +17,7 @@ typedef struct{
 
 class Predict{
     public:
-        Predict(LoadAllData* load_data, Param *param, int total_num_proc, int my_rank) 
+        Predict(LoadData* load_data, Param *param, int total_num_proc, int my_rank) 
             : data(load_data), param(param), nproc(total_num_proc), rank(my_rank){
             pctr = 0.0;
             MAX_ARRAY_SIZE = 1e6;
@@ -83,7 +83,6 @@ class Predict{
                     vxvx -= vvxx;
                     wx += vxvx * 1.0 / 2.0;
                 }
-                //std::cout<<"wx = "<<wx<<std::endl;
                 if(wx < -30){
                         pctr = 1e-6;
                 }
@@ -162,7 +161,7 @@ class Predict{
         }
 
     private:
-        LoadAllData* data;
+        LoadData* data;
         Param *param;
         std::vector<std::set<int> > cross_field;
         std::vector<clkinfo> result_list;

@@ -3,13 +3,14 @@
 #include <vector>
 
 namespace dml{
-class LoadAllData : public IO{
+class LoadData : public IO{
     public:
-        LoadAllData(const char *file_path, int rank, int nproc) : IO(file_path), rank(rank), nproc(nproc){
+        LoadData(const char *file_path, int rank, int nproc) : IO(file_path), rank(rank), nproc(nproc){
         }
-        ~LoadAllData(){}
+        ~LoadData(){}
 
-        void load();
+        void load_all_data();
+        void load_batch_data(int num);
 
     public:
         key_val keyval;

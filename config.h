@@ -1,10 +1,12 @@
 #pragma once
---epoch=1000
---batch_size=4000
+--isbatch=1
+--isonline=0
+--epoch=1
+--batch_size=800
 --bias=0.0
---alpha=0.1
+--alpha=0.8
 --beta=1.0
---lambda1=0.001
+--lambda1=2.0
 --lambda2=0.0
 --fea_dim=370000
 --factor=2

@@ -27,7 +27,8 @@ class IO{
             }
         }
 
-        virtual void load() = 0;
+        virtual void load_all_data() = 0;
+        virtual void load_batch_data(int num) = 0;
 
     public:
         std::ifstream fin_;

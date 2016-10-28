@@ -1,6 +1,8 @@
 #pragma once
 #include <gflags/gflags.h>
 
+DEFINE_int64(isbatch, 0, "");
+DEFINE_int64(isonline, 0, "");
 DEFINE_int64(epoch, 0, "epoch");
 DEFINE_int64(batch_size, 0, "batchsize");
 DEFINE_int64(fea_dim, 0, "");
@@ -34,6 +36,8 @@ class Param{
         ~Param(){}
 
         void Init(){
+            isbatch = FLAGS_isbatch;
+            isonline = FLAGS_isonline;
             epoch = FLAGS_epoch;
             batch_size = FLAGS_batch_size;
             bias = FLAGS_fea_dim;
@@ -58,6 +62,8 @@ class Param{
     public:
         int argc;
         char **argv;
+        int isbatch;
+        int isonline;
         int epoch;
         int batch_size;
         double bias;

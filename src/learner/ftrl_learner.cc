@@ -2,20 +2,48 @@
 
 namespace dml{
 void FtrlLearner::run(){
+    std::thread threads[core_num];
+    ThreadPool pool(core_num);
+
+    if(param->isonline == 1){
+        train_online(pool);
+    }
+    else if(param->isbatch == 1){
+        train_batch(pool);
+    }
+}//end run
+
+void FtrlLearner::train_online(ThreadPool& pool){
+    int b = 0;
+    while(1){
+        data->load_batch_data(param->batch_size);
+        if(data->fea_matrix.size() < param->batch_size) break;
+        int thread_batch = param->batch_size / core_num;
+        for(int j = 0; j < core_num; j++){
+            int start = j * thread_batch;
+            int end = (j + 1) * thread_batch;
+            pool.enqueue(std::bind(&FtrlLearner::calculate_batch_gradient_multithread, this, start, end));
+        }
+        mutex.lock();
+        allreduce_gradient();
+        allreduce_weight();
+        mutex.unlock();
+        b++;
+        if((b+1) % 2000 == 0){
+            std::cout<<"batch = "<<b<<std::endl;
+            pred->run(loc_w, loc_v);
+        }
+    }
+}
+
+void FtrlLearner::train_batch(ThreadPool& pool){
+    data->load_all_data();
     int batch_num = data->fea_matrix.size() / param->batch_size, batch_num_min = 0;
     MPI_Allreduce(&batch_num, &batch_num_min, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
     std::cout<<"total epochs = "<<param->epoch<<" batch_num_min = "<<batch_num_min<<std::endl;
-    int core_num = std::thread::hardware_concurrency();
-    std::thread threads[core_num];
-
-    clock_t pstart, pend;
-    clock_t start_time, finish_time;
-    clock_t send_time, recv_time;
-    ThreadPool pool(core_num);
-
+    clock_t pstart, pend, start_time, finish_time, send_time, recv_time;
     for(int epoch = 0; epoch < param->epoch; ++epoch){
         row = 0;
-        int batches = 0;
         std::cout<<"epoch "<<epoch<<" ";
         if((epoch + 1) % 10 == 0){
             pstart = clock();
@@ -24,6 +52,7 @@ void FtrlLearner::run(){
             std::cout<<"predict time:"<<(pend - pstart) * 1.0 / CLOCKS_PER_SEC<<std::endl;
         }
         if(rank == 0 && (epoch+1) % 20 == 0) dump(epoch);
+        int batches = 0;
         if(param->issinglethread){
             while(row < data->fea_matrix.size()){
                 if( (batches == batch_num_min - 1) ) break;
@@ -50,12 +79,35 @@ void FtrlLearner::run(){
                 allreduce_gradient();
                 allreduce_weight();
                 mutex.unlock();
-            }
+                if((i+1) % 200 == 0) pred->run(loc_w, loc_v);
+            }//end for
             finish_time = clock();
             std::cout<<"Elasped time:"<<(finish_time - start_time) * 1.0 / CLOCKS_PER_SEC<<std::endl;
-        }
-    }
-}//end run
+        }//end else if
+    }//end for
+}
+
+void FtrlLearner::update_gradient(int ins_seg_num, float& delta, std::vector<float>& vx_sum, std::set<int>::iterator& setIter){
+    for(int col = 0; col < ins_seg_num; col++){
+        int group = data->fea_matrix[row][col].fgid;
+        long int index = data->fea_matrix[row][col].fid;
+        float value = data->fea_matrix[row][col].val;
+        loc_g[index] += delta * value;
+        float vx = 0.0;
+        for(int k = 0; k < param->factor; k++){
+            if(param->islr) break;
+            for(int f = 0; f < param->group; f++){
+                setIter = cross_field[group].find(f);
+                if(setIter == cross_field[group].end()) continue;
+                if(param->isfm) f = 0;
+                float tmpv = getElem(loc_v, k, index, f);
+                vx = tmpv * value;
+                addVal(loc_g_v, -1 * delta * (vx_sum[k] - vx) * value, k, index, f);
+                if(param->isfm) break;
+            }
+        }//end for
+    }//end for
+}
 
 void FtrlLearner::calculate_batch_gradient_singlethread(){
     int group = 0, index = 0; float value = 0.0, pctr = 0.0;
@@ -81,7 +133,7 @@ void FtrlLearner::calculate_batch_gradient_singlethread(){
                     vvxx += loc_v_temp * loc_v_temp * value * value;
                     if(param->isfm) break;
                 }
-            }
+            }//end for
         }//end for
         for(int k = 0; k < param->factor; k++){
             if(param->islr) break;
@@ -91,25 +143,7 @@ void FtrlLearner::calculate_batch_gradient_singlethread(){
         wx += vxvx * 1.0 / 2.0;
         pctr = sigmoid(wx);
         float delta = pctr - data->label[row];
-        for(int col = 0; col < ins_seg_num; col++){
-            group = data->fea_matrix[row][col].fgid;
-            index = data->fea_matrix[row][col].fid;
-            value = data->fea_matrix[row][col].val;
-            loc_g[index] += delta * value;
-            float vx = 0.0;
-            for(int k = 0; k < param->factor; k++){
-                if(param->islr) break;
-                for(int f = 0; f < param->group; f++){
-                    setIter = cross_field[group].find(f);
-                    if(setIter == cross_field[group].end()) continue;
-                    if(param->isfm) f = 0;
-                    float tmpv = getElem(loc_v, k, index, f);
-                    vx = tmpv * value;
-                    addVal(loc_g_v, -1 * delta * (vx_sum[k] - vx) * value, k, index, f);
-                    if(param->isfm) break;
-                }
-            }
-        }
+        update_gradient(ins_seg_num, delta, vx_sum, setIter);
         row++;
     }//end for
 }//end batch_gradient_calculate
@@ -150,25 +184,7 @@ void FtrlLearner::calculate_batch_gradient_multithread(int start, int end){
         wx += vxvx * 1.0 / 2.0;
         pctr = sigmoid(wx);
         float delta = pctr - data->label[r];
-        for(int col = 0; col < ins_seg_num; ++col){
-            group = data->fea_matrix[r][col].fgid;
-            index = data->fea_matrix[r][col].fid;
-            value = data->fea_matrix[r][col].val;
-            loc_g_tmp[index] += delta * value;
-            float vx = 0.0;
-            for(int k = 0; k < param->factor; ++k){
-                if(param->islr) break;
-                for(int f = 0; f < param->group; ++f){
-                    setIter = cross_field[group].find(f);
-                    if(setIter == cross_field[group].end()) continue;
-                    if(param->isfm) f = 0;
-                    float tmpv = getElem(loc_v, k, index, f);
-                    vx = tmpv * value;
-                    addVal(loc_g_v_tmp, -1 * delta * (vx_sum[k] - vx) * value, k, index, f);
-                    if(param->isfm) break;
-                }
-            }
-        }
+        update_gradient(ins_seg_num, delta, vx_sum, setIter);
     }//end for
     mutex.lock();
     cblas_dcopy(param->fea_dim, loc_g_tmp, 1, loc_g, 1);
@@ -199,7 +215,7 @@ void FtrlLearner::allreduce_gradient(){
             MPI_Recv(&recv_loc_g_vec[0], param->fea_dim, newType, r, 99, MPI_COMM_WORLD, &status);
             int recv_loc_g_num;
             MPI_Get_count(&status, newType, &recv_loc_g_num);
-#pragma omp parallel for
+            #pragma omp parallel for
             for(int i = 0; i < recv_loc_g_num; ++i){
                 int k = recv_loc_g_vec[i].key;
                 int v = recv_loc_g_vec[i].val;
@@ -212,7 +228,7 @@ void FtrlLearner::allreduce_gradient(){
                 MPI_Recv(&recv_loc_g_v_vec[0], v_dim, newType, r, 399, MPI_COMM_WORLD, &status);
                 int recv_loc_g_v_num;
                 MPI_Get_count(&status, newType, &recv_loc_g_v_num);
-#pragma omp parallel for
+                #pragma omp parallel for
                 for(int i = 0; i < recv_loc_g_v_num; ++i){
                     int k = recv_loc_g_v_vec[i].key;
                     int v = recv_loc_g_v_vec[i].val;
@@ -252,7 +268,7 @@ void FtrlLearner::allreduce_weight(){
         int recv_loc_w_num;
         MPI_Get_count(&status, newType, &recv_loc_w_num);
         memset(loc_w, 0.0, param->fea_dim * sizeof(double));
-#pragma omp parallel for
+        #pragma omp parallel for
         for(int i = 0; i < recv_loc_w_num; ++i){
             int k = recv_loc_w_vec[i].key;
             int v = recv_loc_w_vec[i].val;
@@ -266,7 +282,7 @@ void FtrlLearner::allreduce_weight(){
             int recv_loc_v_num;
             MPI_Get_count(&status, newType, &recv_loc_v_num);
             memset(loc_v, 0.0, v_dim * sizeof(double));
-#pragma omp parallel for
+            #pragma omp parallel for
             for(int i = 0; i < recv_loc_v_num; ++i){
                 int k = recv_loc_v_vec[i].key;
                 int v = recv_loc_v_vec[i].val;
