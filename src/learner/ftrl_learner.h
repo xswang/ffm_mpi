@@ -67,7 +67,7 @@ class FtrlLearner : public Learner{
         }
 
         void run();
-        void update_gradient(int, int r, float&, std::vector<float>&);
+        void update_gradient(int, int r, float&, double*&, std::vector<float>&);
         void calculate_batch_gradient_multithread(int start, int end);
         void allreduce_gradient();
         void allreduce_weight();
@@ -132,6 +132,7 @@ class FtrlLearner : public Learner{
         Predict *pred;
 
         int core_num;
+        int calculate_gradient_thread_count;
 
         double *loc_g_tmp;
         double *loc_g_v_tmp;

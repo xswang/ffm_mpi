@@ -21,9 +21,9 @@ int main(int argc,char* argv[]){
     char test_data_path[1024];
     snprintf(test_data_path, 1024, "%s-%05d", param.test_data_path.c_str(), rank);
 
-    dml::LoadData train_data(train_data_path, rank, nproc);
+    dml::LoadData train_data(train_data_path);
 
-    dml::LoadData test_data(test_data_path, rank, nproc);
+    dml::LoadData test_data(test_data_path);
     test_data.load_all_data();
 
     dml::Predict predict(&test_data, &param, nproc, rank);

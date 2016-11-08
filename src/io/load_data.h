@@ -5,7 +5,7 @@
 namespace dml{
 class LoadData : public IO{
     public:
-        LoadData(const char *file_path, int rank, int nproc) : IO(file_path), rank(rank), nproc(nproc){
+        LoadData(const char *file_path) : IO(file_path){
         }
         ~LoadData(){}
 
@@ -17,7 +17,5 @@ class LoadData : public IO{
         std::vector<key_val> sample;
         std::vector<std::vector<key_val>> fea_matrix;
         std::vector<int> label;
-        int rank;
-        int nproc;
 };
 }

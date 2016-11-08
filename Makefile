@@ -7,10 +7,10 @@ CPP_tag = -std=gnu++11 -fopenmp
 LIB=/home/services/xiaoshu/lib
 INCLUDE=/home/services/xiaoshu/include
 
-all:ffm_ftrl_mpi rm
+all:ffm_mpi rm
 
-ffm_ftrl_mpi:main.o
-	mpicxx $(CPP_tag) -g -o ffm_ftrl_mpi main.o $(LIBRARYPATH) $(LIBRARY)
+ffm_mpi:main.o
+	mpicxx $(CPP_tag) -g -o ffm_mpi main.o $(LIBRARYPATH) $(LIBRARY)
 
 main.o: src/main.cpp 
 	mpicxx $(CPP_tag) $(INCLUDEPATH) -c src/main.cpp -DGLFAGS_NAMESPACE=google 
@@ -18,4 +18,4 @@ rm:
 	rm main.o
 
 clean:
-	rm -f *~ ffm_ftrl_mpi predict *.o
+	rm -f *~ ffm_mpi predict *.o

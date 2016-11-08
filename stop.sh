@@ -1,1 +1,1 @@
-ps -ef | grep ffm_ftrl_mpi | awk '{ print $2 }' | sudo xargs kill -9
+ps -ef | grep ffm_mpi | awk '{ print $2 }' | sudo xargs kill -9

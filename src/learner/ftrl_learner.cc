@@ -2,7 +2,7 @@
 
 namespace dml{
 void FtrlLearner::run(){
-    ThreadPool pool(core_num);
+    ThreadPool pool(core_num - 1);
     if(param->isonline == 1){
         train_online(pool);
     }
@@ -13,24 +13,29 @@ void FtrlLearner::run(){
 
 void FtrlLearner::train_online(ThreadPool& pool){
     int b = 0;
-    while(1){
+    for(int epoch = 0; epoch < param->epoch; ++epoch){
+    while(b < 700){
         data->load_batch_data(param->batch_size);
         if(data->fea_matrix.size() < param->batch_size) break;
         memset(loc_g, 0.0, param->fea_dim * sizeof(double));//notation:
         memset(loc_g_v, 0.0, v_dim * sizeof(double));//notation:
+        int start, end;
         int thread_batch = param->batch_size / core_num;
+        calculate_gradient_thread_count = 0;
         for(int j = 0; j < core_num; j++){
-            int start = j * thread_batch;
-            int end = (j + 1) * thread_batch;
+            start = j * thread_batch;
+            end = (j + 1) * thread_batch;
             pool.enqueue(std::bind(&FtrlLearner::calculate_batch_gradient_multithread, this, start, end));
         }
+        while(calculate_gradient_thread_count < core_num);//main thread must wait for all thread in thread pool
         mutex.lock();
         allreduce_gradient();
         allreduce_weight();
         mutex.unlock();
-        b++;
-        if((b+1) % 2000 == 0) pred->run(loc_w, loc_v);
-    }
+        if((b+1) % 200 == 0) pred->run(loc_w, loc_v);
+        ++b;
+    }//end while
+    }//end for
 }
 
 void FtrlLearner::train_batch(ThreadPool& pool){
@@ -38,7 +43,7 @@ void FtrlLearner::train_batch(ThreadPool& pool){
     int batch_num = data->fea_matrix.size() / param->batch_size, batch_num_min = 0;
     MPI_Allreduce(&batch_num, &batch_num_min, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
     std::cout<<"total epochs = "<<param->epoch<<" batch_num_min = "<<batch_num_min<<std::endl;
-    clock_t pstart, pend, start_time, finish_time, send_time, recv_time;
+    clock_t start_time, finish_time;
     for(int epoch = 0; epoch < param->epoch; ++epoch){
         std::cout<<"epoch "<<epoch<<" ";
         if(rank == 0 && (epoch+1) % 20 == 0) dump(epoch);
@@ -49,41 +54,22 @@ void FtrlLearner::train_batch(ThreadPool& pool){
             memset(loc_g_v, 0.0, v_dim * sizeof(double));//notation:
             int all_start = i * param->batch_size;
             int thread_batch = param->batch_size / core_num;
+            int start, end;
+            calculate_gradient_thread_count = 0;
             for(int j = 0; j < core_num; ++j){
-                int start = all_start + j * thread_batch;
-                int end = all_start + (j + 1) * thread_batch;
+                start = all_start + j * thread_batch;
+                end = all_start + (j + 1) * thread_batch;
                 pool.enqueue(std::bind(&FtrlLearner::calculate_batch_gradient_multithread, this, start, end));
             }
+            while(calculate_gradient_thread_count < core_num);//main thread must wait for all thread in thread pool
             mutex.lock();
             allreduce_gradient();
             allreduce_weight();
             mutex.unlock();
-            if((i+1) % 2000 == 0) pred->run(loc_w, loc_v);
+            if((i+1) % 200 == 0) pred->run(loc_w, loc_v);
         }//end for
         finish_time = clock();
         std::cout<<"Elasped time:"<<(finish_time - start_time) * 1.0 / CLOCKS_PER_SEC<<std::endl;
-    }//end for
-}
-
-void FtrlLearner::update_gradient(int ins_seg_num, int r, float& delta, std::vector<float>& vx_sum){
-    for(int col = 0; col < ins_seg_num; col++){
-        int group = data->fea_matrix[r][col].fgid;
-        int index = data->fea_matrix[r][col].fid;
-        float value = data->fea_matrix[r][col].val;
-        loc_g[index] += delta * value;
-        float vx = 0.0;
-        for(int k = 0; k < param->factor; k++){
-            if(param->islr) break;
-            for(int f = 0; f < param->group; f++){
-                setIter = cross_field[group].find(f);
-                if(setIter == cross_field[group].end()) continue;
-                if(param->isfm) f = 0;
-                float tmpv = getElem(loc_v, k, index, f);
-                vx = tmpv * value;
-                addVal(loc_g_v, -1 * delta * (vx_sum[k] - vx) * value, k, index, f);
-                if(param->isfm) break;
-            }
-        }//end for
     }//end for
 }
 
@@ -122,12 +108,36 @@ void FtrlLearner::calculate_batch_gradient_multithread(int start, int end){
         wx += vxvx * 1.0 / 2.0;
         pctr = sigmoid(wx);
         float delta = pctr - data->label[r];
-        update_gradient(ins_seg_num, r, delta, vx_sum);
+        update_gradient(ins_seg_num, r, delta, loc_g_tmp, vx_sum);
+        if(!param->islr) update_gradient(ins_seg_num, r, delta, loc_g_v_tmp, vx_sum);
     }//end for
     mutex.lock();
-    cblas_dcopy(param->fea_dim, loc_g_tmp, 1, loc_g, 1);
-    if(!param->islr)cblas_dcopy(v_dim, loc_g_v_tmp, 1, loc_g_v, 1);
+    cblas_daxpy(param->fea_dim, 1.0, loc_g_tmp, 1, loc_g, 1);
+    if(!param->islr)cblas_daxpy(v_dim, 1.0, loc_g_v_tmp, 1, loc_g_v, 1);
+    calculate_gradient_thread_count += 1;
     mutex.unlock();
+}
+
+void FtrlLearner::update_gradient(int ins_seg_num, int r, float& delta, double*& loc_gv_tmp, std::vector<float>& vx_sum){
+    for(int col = 0; col < ins_seg_num; col++){
+        int group = data->fea_matrix[r][col].fgid;
+        int index = data->fea_matrix[r][col].fid;
+        float value = data->fea_matrix[r][col].val;
+        loc_gv_tmp[index] += delta * value;
+        float vx = 0.0;
+        for(int k = 0; k < param->factor; k++){
+            if(param->islr) break;
+            for(int f = 0; f < param->group; f++){
+                setIter = cross_field[group].find(f);
+                if(setIter == cross_field[group].end()) continue;
+                if(param->isfm) f = 0;
+                float tmpv = getElem(loc_v, k, index, f);
+                vx = tmpv * value;
+                addVal(loc_gv_tmp, -1 * delta * (vx_sum[k] - vx) * value, k, index, f);
+                if(param->isfm) break;
+            }
+        }//end for
+    }//end for
 }
 
 void FtrlLearner::allreduce_gradient(){
